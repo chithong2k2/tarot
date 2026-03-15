@@ -85,6 +85,19 @@ export default function App() {
         setSaleSchedule(safeSaleShifts);
         setSettings(safeSettings);
         
+        // Sync current user data if found in the users list
+        if (user) {
+          const currentUserData = safeUsers.find(u => u.id === user.id);
+          if (currentUserData) {
+            const updatedUser = { ...user, ...currentUserData };
+            // Only update if something actually changed to avoid loops
+            if (JSON.stringify(updatedUser) !== JSON.stringify(user)) {
+              setUser(updatedUser);
+              localStorage.setItem('tarot_user', JSON.stringify(updatedUser));
+            }
+          }
+        }
+        
         const newSummary = calculateDashboardSummary(filteredSales, safeUsers, safeCosts);
         setSummary(newSummary);
       } else {

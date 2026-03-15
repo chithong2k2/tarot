@@ -103,7 +103,6 @@ export const StaffView: React.FC<StaffViewProps> = ({
                 >
                   <option value="reader">Reader</option>
                   <option value="sale">Sale</option>
-                  <option value="manager">Manager</option>
                 </select>
               </div>
               <div>

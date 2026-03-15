@@ -37,6 +37,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ user, onUpdateUser }
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [passMessage, setPassMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
+  // Sync form data when user prop changes (e.g. after sync from Firestore)
+  React.useEffect(() => {
+    setFormData({
+      full_name: user.full_name || '',
+      username: user.username || '',
+      avatar_url: user.avatar_url || ''
+    });
+  }, [user.id, user.full_name, user.username, user.avatar_url]);
+
   const compressImage = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
