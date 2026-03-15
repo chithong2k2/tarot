@@ -339,11 +339,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   <table className="w-full text-left text-sm">
                     <thead>
                       <tr className="text-slate-400 uppercase text-[10px] tracking-wider font-bold">
-                        <th className="pb-3 pr-4">Sale</th>
-                        <th className="pb-3 pr-4">Customer</th>
-                        <th className="pb-3 pr-4">Package</th>
-                        <th className="pb-3 pr-4 text-right">Amount</th>
-                        <th className="pb-3 text-right">Tip</th>
+                        <th className="pb-3 pr-4">Nhân Viên Sale</th>
+                        <th className="pb-3 pr-4">Khách Hàng</th>
+                        <th className="pb-3 pr-4">Gói Dịch Vụ</th>
+                        <th className="pb-3 pr-4 text-right">Số Tiền</th>
+                        <th className="pb-3 text-right">Tiền Tip</th>
                         {user.role === 'manager' && <th className="pb-3 text-right">Thao tác</th>}
                       </tr>
                     </thead>
@@ -396,11 +396,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
                 <div className="bg-slate-50 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="flex items-center space-x-2">
-                    <span className="text-slate-500 text-sm">Total Revenue Today:</span>
+                    <span className="text-slate-500 text-sm">Tổng Doanh Thu Hôm Nay:</span>
                     <span className="font-bold text-indigo-600">{formatVND(totalRevenueToday)}</span>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <span className="text-slate-500 text-sm">Total Revenue This Week:</span>
+                    <span className="text-slate-500 text-sm">Tổng Doanh Thu Tuần Này:</span>
                     <span className="font-bold text-emerald-600">{formatVND(totalRevenueThisWeek)}</span>
                   </div>
                 </div>

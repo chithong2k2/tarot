@@ -125,8 +125,24 @@ export const firebaseService = {
   },
 
   updateUserProfile: async (userId: string, data: Partial<User>): Promise<FirebaseResponse> => {
-    await updateDoc(doc(db, 'users', userId), data);
-    return { success: true };
+    try {
+      if (!userId) throw new Error("User ID is required");
+      await updateDoc(doc(db, 'users', userId), data);
+      return { success: true };
+    } catch (error) {
+      console.error("[FirebaseService] updateUserProfile error:", error);
+      let message = "Cập nhật thất bại";
+      if (error instanceof Error) {
+        if (error.message.includes("too large")) {
+          message = "Dữ liệu quá lớn (Ảnh đại diện vượt quá giới hạn 1MB của database)";
+        } else if (error.message.includes("permission-denied")) {
+          message = "Bạn không có quyền cập nhật thông tin này";
+        } else {
+          message = error.message;
+        }
+      }
+      return { success: false, message };
+    }
   },
 
   deactivateUser: async (id: string): Promise<FirebaseResponse> => {

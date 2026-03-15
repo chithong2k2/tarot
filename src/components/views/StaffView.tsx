@@ -183,8 +183,12 @@ export const StaffView: React.FC<StaffViewProps> = ({
         {filteredUsers.map(u => (
           <div key={u.id} className="bg-white p-6 rounded-2xl border border-slate-100 card-shadow group hover:border-indigo-200 transition-all">
             <div className="flex items-start justify-between mb-4">
-              <div className="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center text-slate-600 group-hover:bg-indigo-50 group-hover:text-indigo-600 transition-colors">
-                <UserIcon size={24} />
+              <div className="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center text-slate-600 group-hover:bg-indigo-50 group-hover:text-indigo-600 transition-colors overflow-hidden">
+                {u.avatar_url ? (
+                  <img src={u.avatar_url} alt={u.full_name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                ) : (
+                  <UserIcon size={24} />
+                )}
               </div>
               <div className="flex space-x-1">
                 <button 

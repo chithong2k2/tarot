@@ -37,18 +37,66 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ user, onUpdateUser }
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [passMessage, setPassMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const compressImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target?.result as string;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+
+          // Max dimensions for avatar to keep it small
+          const MAX_SIZE = 300;
+          if (width > height) {
+            if (width > MAX_SIZE) {
+              height *= MAX_SIZE / width;
+              width = MAX_SIZE;
+            }
+          } else {
+            if (height > MAX_SIZE) {
+              width *= MAX_SIZE / height;
+              height = MAX_SIZE;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            reject(new Error('Could not get canvas context'));
+            return;
+          }
+          
+          ctx.drawImage(img, 0, 0, width, height);
+
+          // Compress to JPEG with 0.6 quality (very small size)
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
+          resolve(dataUrl);
+        };
+        img.onerror = () => reject(new Error('Failed to load image'));
+      };
+      reader.onerror = () => reject(new Error('Failed to read file'));
+    });
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 1024 * 1024) { // 1MB limit for base64
-        setMessage({ type: 'error', text: 'Ảnh quá lớn (vui lòng chọn ảnh dưới 1MB)' });
-        return;
+      setLoading(true);
+      setMessage(null);
+      try {
+        const compressedBase64 = await compressImage(file);
+        setFormData({ ...formData, avatar_url: compressedBase64 });
+      } catch (err) {
+        console.error("Image compression error:", err);
+        setMessage({ type: 'error', text: 'Không thể xử lý ảnh này. Vui lòng thử ảnh khác.' });
+      } finally {
+        setLoading(false);
       }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setFormData({ ...formData, avatar_url: reader.result as string });
-      };
-      reader.readAsDataURL(file);
     }
   };
 
