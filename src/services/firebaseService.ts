@@ -422,15 +422,22 @@ export const firebaseService = {
 
   // --- System ---
   resetWeek: async (): Promise<FirebaseResponse> => {
-    // In Firestore, we might want to archive instead of delete, 
-    // but for this request, we'll clear the registrations
     const batch = writeBatch(db);
     
+    // 1. Clear shift registrations
     const readerShifts = await getDocs(collection(db, 'reader_shifts'));
     readerShifts.forEach(d => batch.delete(d.ref));
     
     const saleShifts = await getDocs(collection(db, 'sale_shifts'));
     saleShifts.forEach(d => batch.delete(d.ref));
+
+    // 2. Clear sales records (as requested: "toàn bộ giao dịch của tuần đó sẽ biến mất")
+    const sales = await getDocs(collection(db, 'sales'));
+    sales.forEach(d => batch.delete(d.ref));
+
+    // 3. Clear operating costs
+    const costs = await getDocs(collection(db, 'operating_costs'));
+    costs.forEach(d => batch.delete(d.ref));
     
     await batch.commit();
     return { success: true };

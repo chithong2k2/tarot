@@ -166,6 +166,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     try {
                       setIsResetting(true);
                       await firebaseService.resetWeek();
+                      window.alert('Đã reset tuần mới thành công! Toàn bộ giao dịch và lịch trực đã được xóa.');
                       fetchData();
                       setShowConfirmReset(false);
                     } catch (err) {
