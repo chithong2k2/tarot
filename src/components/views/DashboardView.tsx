@@ -103,52 +103,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <FileDown size={18} />
               <span>Xuất Excel</span>
             </button>
-            {!showConfirmSeed ? (
-              <button 
-                onClick={() => setShowConfirmSeed(true)}
-                className="flex items-center space-x-2 bg-indigo-50 border border-indigo-100 px-4 py-2 rounded-xl text-indigo-700 hover:bg-indigo-100 transition-colors shadow-sm"
-              >
-                <RefreshCcw size={18} />
-                <span>Khởi Tạo Hệ Thống</span>
-              </button>
-            ) : (
-              <div className="flex items-center bg-amber-50 border border-amber-100 rounded-xl p-1 gap-1">
-                <span className="text-[10px] font-bold text-amber-700 px-2 uppercase">Xác nhận?</span>
-                <button 
-                  disabled={isSeeding}
-                  onClick={async () => {
-                    try {
-                      setIsSeeding(true);
-                      console.log("[Dashboard] Starting seedDatabase...");
-                      const res = await firebaseService.seedDatabase();
-                      console.log("[Dashboard] seedDatabase result:", res);
-                      if (res.success) {
-                        window.alert('Khởi tạo thành công!');
-                        fetchData();
-                        setShowConfirmSeed(false);
-                      } else {
-                        window.alert('Khởi tạo thất bại: ' + res.message);
-                      }
-                    } catch (err) {
-                      console.error("[Dashboard] Error in seed process:", err);
-                      window.alert('Lỗi: ' + (err instanceof Error ? err.message : String(err)));
-                    } finally {
-                      setIsSeeding(false);
-                    }
-                  }}
-                  className="bg-emerald-600 text-white text-xs px-3 py-1.5 rounded-lg hover:bg-emerald-700 transition-colors"
-                >
-                  {isSeeding ? 'Đang chạy...' : 'CÓ'}
-                </button>
-                <button 
-                  disabled={isSeeding}
-                  onClick={() => setShowConfirmSeed(false)}
-                  className="bg-slate-200 text-slate-700 text-xs px-3 py-1.5 rounded-lg hover:bg-slate-300 transition-colors"
-                >
-                  HỦY
-                </button>
-              </div>
-            )}
             {!showConfirmReset ? (
               <button 
                 onClick={() => setShowConfirmReset(true)}
