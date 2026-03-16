@@ -14,53 +14,75 @@ export const calculateDashboardSummary = (sales: SaleRecord[], users: User[], op
   const revenueByDay: Record<string, number> = {
     'Thứ 2': 0, 'Thứ 3': 0, 'Thứ 4': 0, 'Thứ 5': 0, 'Thứ 6': 0, 'Thứ 7': 0, 'Chủ nhật': 0
   };
+  const expensesByDay: Record<string, number> = {
+    'Thứ 2': 0, 'Thứ 3': 0, 'Thứ 4': 0, 'Thứ 5': 0, 'Thứ 6': 0, 'Thứ 7': 0, 'Chủ nhật': 0
+  };
   const readerStats: Record<string, number> = {};
   const saleStats: Record<string, number> = {};
 
   const userMap = new Map<string, User>();
   users.forEach(u => userMap.set(u.id, u));
 
-  sales.forEach(s => {
-    totalAmount += Number(s.amount) || 0;
-    totalTip += Number(s.tip) || 0;
-    
-    // Xử lý ngày tháng an toàn
+  const getDayNameFromDate = (dateStr: string) => {
     let date: Date;
     try {
-      date = new Date(s.date);
+      date = new Date(dateStr);
       if (isNaN(date.getTime())) {
-        // Nếu parse lỗi, thử split nếu là định dạng YYYY-MM-DD
-        const parts = String(s.date).split('-');
+        const parts = String(dateStr).split('-');
         date = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
       }
     } catch (e) {
       date = new Date();
     }
-
     const days = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
-    const dayName = days[date.getDay()];
+    return days[date.getDay()];
+  };
+
+  operatingCosts.forEach(c => {
+    const amount = Number(c.amount) || 0;
+    totalOperatingCosts += amount;
+    const dayName = getDayNameFromDate(c.date);
+    if (expensesByDay[dayName] !== undefined) {
+      expensesByDay[dayName] += amount;
+    }
+  });
+
+  sales.forEach(s => {
+    const amount = Number(s.amount) || 0;
+    const tip = Number(s.tip) || 0;
+    totalAmount += amount;
+    totalTip += tip;
+    
+    const dayName = getDayNameFromDate(s.date);
     if (revenueByDay[dayName] !== undefined) {
-      revenueByDay[dayName] += (Number(s.amount) || 0) + (Number(s.tip) || 0);
+      revenueByDay[dayName] += amount + tip;
     }
     
     const rId = s.reader_id || (s as any).reader_name;
     const reader = userMap.get(rId) || users.find(u => u.full_name === rId);
     if (reader) {
-      totalReaderCommission += (Number(s.amount) * (Number(reader.commission_percent) / 100));
-      readerStats[reader.full_name] = (readerStats[reader.full_name] || 0) + (Number(s.amount) || 0);
+      const commission = (amount * (Number(reader.commission_percent) / 100));
+      totalReaderCommission += commission;
+      readerStats[reader.full_name] = (readerStats[reader.full_name] || 0) + amount;
+      if (expensesByDay[dayName] !== undefined) {
+        expensesByDay[dayName] += commission;
+      }
     } else if (rId) {
-      // Fallback for when user is not found but we have a name/ID
-      readerStats[rId] = (readerStats[rId] || 0) + (Number(s.amount) || 0);
+      readerStats[rId] = (readerStats[rId] || 0) + amount;
     }
 
     const sId = s.sale_id || (s as any).sale_name;
     if (sId && sId !== 'none') {
       const sale = userMap.get(sId) || users.find(u => u.full_name === sId);
       if (sale) {
-        totalSaleCommission += (Number(s.amount) * (Number(sale.commission_percent) / 100));
-        saleStats[sale.full_name] = (saleStats[sale.full_name] || 0) + (Number(s.amount) || 0);
+        const commission = (amount * (Number(sale.commission_percent) / 100));
+        totalSaleCommission += commission;
+        saleStats[sale.full_name] = (saleStats[sale.full_name] || 0) + amount;
+        if (expensesByDay[dayName] !== undefined) {
+          expensesByDay[dayName] += commission;
+        }
       } else {
-        saleStats[sId] = (saleStats[sId] || 0) + (Number(s.amount) || 0);
+        saleStats[sId] = (saleStats[sId] || 0) + amount;
       }
     }
   });
@@ -82,6 +104,10 @@ export const calculateDashboardSummary = (sales: SaleRecord[], users: User[], op
     totalOperatingCosts,
     netProfit,
     revenueByDay: Object.entries(revenueByDay).map(([name, value]) => ({ name, value })),
+    profitByDay: Object.entries(revenueByDay).map(([name, value]) => ({ 
+      name, 
+      value: value - (expensesByDay[name] || 0) 
+    })),
     topReader: { name: topReaderEntry ? topReaderEntry[0] : 'Chưa có', amount: topReaderEntry ? topReaderEntry[1] : 0 },
     topSale: { name: topSaleEntry ? topSaleEntry[0] : 'Chưa có', amount: topSaleEntry ? topSaleEntry[1] : 0 }
   };
@@ -97,6 +123,7 @@ export const INITIAL_SUMMARY: DashboardSummary = {
   totalOperatingCosts: 0,
   netProfit: 0,
   revenueByDay: [],
+  profitByDay: [],
   topReader: { name: 'N/A', amount: 0 },
   topSale: { name: 'N/A', amount: 0 }
 };

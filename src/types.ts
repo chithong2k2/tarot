@@ -44,6 +44,7 @@ export interface DashboardSummary {
   totalOperatingCosts: number;
   netProfit: number;
   revenueByDay: { name: string; value: number }[];
+  profitByDay: { name: string; value: number }[];
   topReader: { name: string; amount: number };
   topSale: { name: string; amount: number };
 }

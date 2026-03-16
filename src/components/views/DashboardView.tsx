@@ -16,6 +16,8 @@ import { motion } from 'motion/react';
 import { 
   BarChart, 
   Bar, 
+  Line,
+  ComposedChart,
   XAxis, 
   YAxis, 
   CartesianGrid, 
@@ -189,10 +191,26 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Chart */}
         <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-100 card-shadow">
-          <h3 className="text-lg font-bold text-slate-900 mb-6">Biểu Đồ Doanh Thu Theo Ngày</h3>
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-lg font-bold text-slate-900">Biểu Đồ Doanh Thu & Lợi Nhuận</h3>
+            <div className="flex items-center gap-4 text-xs font-bold">
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-3 bg-indigo-600/60 rounded-sm"></div>
+                <span className="text-slate-500">Doanh thu</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-3 bg-emerald-500 rounded-full"></div>
+                <span className="text-slate-500">Lợi nhuận</span>
+              </div>
+            </div>
+          </div>
           <div className="h-[300px] w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={summary?.revenueByDay || []}>
+              <ComposedChart data={(summary?.revenueByDay || []).map((item, index) => ({
+                name: item.name,
+                revenue: item.value,
+                profit: summary?.profitByDay[index]?.value || 0
+              }))}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                 <XAxis 
                   dataKey="name" 
@@ -210,9 +228,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <Tooltip 
                   cursor={{ fill: '#f8fafc' }}
                   contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                  formatter={(value: number) => [formatVND(value), 'Doanh thu']}
+                  formatter={(value: number, name: string) => [formatVND(value), name === 'revenue' ? 'Doanh thu' : 'Lợi nhuận']}
                 />
-                <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+                <Bar dataKey="revenue" radius={[6, 6, 0, 0]}>
                   {(summary?.revenueByDay || []).map((entry, index) => {
                     const days = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
                     const todayName = days[new Date().getDay()];
@@ -223,14 +241,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         key={`cell-${index}`} 
                         fill={isToday ? '#4f46e5' : '#818cf8'} 
                         fillOpacity={isToday ? 1 : 0.6}
-                        style={{
-                          filter: isToday ? 'drop-shadow(0 0 8px rgba(79, 70, 229, 0.6))' : 'none'
-                        }}
                       />
                     );
                   })}
                 </Bar>
-              </BarChart>
+                <Line 
+                  type="monotone" 
+                  dataKey="profit" 
+                  stroke="#10b981" 
+                  strokeWidth={3} 
+                  dot={{ r: 4, fill: '#10b981', strokeWidth: 2, stroke: '#fff' }}
+                  activeDot={{ r: 6, strokeWidth: 0 }}
+                />
+              </ComposedChart>
             </ResponsiveContainer>
           </div>
         </div>
