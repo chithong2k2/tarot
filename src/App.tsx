@@ -79,6 +79,9 @@ export default function App() {
         const safeSaleShifts = (Array.isArray(saleShifts) ? saleShifts : []).map((s: any, i: number) => ({ ...s, id: s.id || `s-${i}` }));
         const safeSettings = settings || { id: 'global', is_locked: false };
 
+        console.log("[App] Fetched Users:", safeUsers);
+        console.log("[App] Fetched Sales:", safeSales);
+
         // 1. Sync current user data first to have latest info for filtering
         let activeUser = user;
         if (user) {
@@ -169,6 +172,14 @@ export default function App() {
       fetchData();
     }
   }, [user]);
+
+  // Log current user ID and their transactions as requested
+  useEffect(() => {
+    if (user) {
+      console.log(`[Auth] Current User ID: ${user.id}`);
+      console.log(`[Data] Transactions for ${user.full_name}:`, sales);
+    }
+  }, [user, sales]);
 
   // Forms and Editing States
   const [editingSale, setEditingSale] = useState<SaleRecord | null>(null);

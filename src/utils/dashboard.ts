@@ -68,11 +68,11 @@ export const calculateDashboardSummary = (sales: SaleRecord[], users: User[], op
     }
     
     const rId = String(s.reader_id || (s as any).reader_name || '').trim();
-    const reader = userMap.get(rId) || users.find(u => u.id === rId || u.full_name.toLowerCase() === rId.toLowerCase());
+    const reader = userMap.get(rId) || users.find(u => u.id === rId || (u.full_name || '').toLowerCase() === rId.toLowerCase());
     if (reader) {
       const commission = ((amount + tip) * (Number(reader.commission_percent) / 100));
       totalReaderCommission += commission;
-      readerStats[reader.full_name] = (readerStats[reader.full_name] || 0) + amount + tip;
+      readerStats[reader.full_name || rId] = (readerStats[reader.full_name || rId] || 0) + amount + tip;
       if (expensesByDay[dayName] !== undefined) {
         expensesByDay[dayName] += commission;
       }
@@ -88,11 +88,11 @@ export const calculateDashboardSummary = (sales: SaleRecord[], users: User[], op
 
     const sId = String(s.sale_id || (s as any).sale_name || '').trim();
     if (sId && sId !== 'none' && sId !== 'N/A') {
-      const sale = userMap.get(sId) || users.find(u => u.id === sId || u.full_name.toLowerCase() === sId.toLowerCase());
+      const sale = userMap.get(sId) || users.find(u => u.id === sId || (u.full_name || '').toLowerCase() === sId.toLowerCase());
       if (sale) {
         const commission = ((amount + tip) * (Number(sale.commission_percent) / 100));
         totalSaleCommission += commission;
-        saleStats[sale.full_name] = (saleStats[sale.full_name] || 0) + amount + tip;
+        saleStats[sale.full_name || sId] = (saleStats[sale.full_name || sId] || 0) + amount + tip;
         if (expensesByDay[dayName] !== undefined) {
           expensesByDay[dayName] += commission;
         }

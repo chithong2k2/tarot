@@ -10,7 +10,8 @@ import {
   User as UserIcon,
   Edit2,
   Trash2,
-  FileDown
+  FileDown,
+  ChevronDown
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { 
@@ -66,6 +67,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [showConfirmReset, setShowConfirmReset] = React.useState(false);
   const [isResetting, setIsResetting] = React.useState(false);
   const [deletingSale, setDeletingSaleId] = React.useState<SaleRecord | null>(null);
+  const [isReaderDropdownOpen, setIsReaderDropdownOpen] = React.useState(false);
+
+  const dropdownRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsReaderDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const getDayName = (dateStr: string) => {
     try {
@@ -309,136 +323,190 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       </div>
 
       {/* Detailed Table Section */}
-      <div className="bg-white rounded-2xl border border-slate-100 card-shadow overflow-hidden">
-        <div className="p-6 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <h3 className="text-lg font-bold text-slate-900 uppercase">Chi tiết doanh thu theo ngày</h3>
-          <div className="flex flex-wrap items-center gap-4">
-            {user.role === 'manager' && (
-              <div className="flex items-center space-x-3">
-                <label className="text-sm font-medium text-slate-500">Xem theo:</label>
-                <select 
-                  value={staffType}
-                  onChange={(e) => {
-                    setStaffType(e.target.value as 'reader' | 'sale');
-                    setSelectedReader('All');
-                  }}
-                  className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
-                >
-                  <option value="reader">Reader</option>
-                  <option value="sale">Sale</option>
-                </select>
+      <div className="space-y-6">
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-visible">
+          {/* Filters & Day Selector */}
+          <div className="p-6 border-b border-slate-100 space-y-6">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+              <div className="flex flex-wrap items-center gap-4">
+                <h3 className="text-lg font-bold text-slate-900 uppercase mr-2">Chi tiết giao dịch</h3>
+                {user.role === 'manager' && (
+                  <div className="flex items-center bg-slate-100 p-1 rounded-xl">
+                    <button 
+                      onClick={() => {
+                        setStaffType('reader');
+                        setSelectedReader('All');
+                      }}
+                      className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${staffType === 'reader' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                      Reader
+                    </button>
+                    <button 
+                      onClick={() => {
+                        setStaffType('sale');
+                        setSelectedReader('All');
+                      }}
+                      className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${staffType === 'sale' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                      Sale
+                    </button>
+                  </div>
+                )}
+                {user.role === 'manager' && (
+                  <div className="relative" ref={dropdownRef}>
+                    <button 
+                      onClick={() => setIsReaderDropdownOpen(!isReaderDropdownOpen)}
+                      className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 min-w-[200px] cursor-pointer transition-colors hover:bg-slate-100"
+                    >
+                      <span className="truncate">
+                        {selectedReader === 'All' 
+                          ? `Tất cả ${staffType === 'reader' ? 'Reader' : 'Sale'}` 
+                          : users.find(u => u.id === selectedReader)?.full_name || selectedReader}
+                      </span>
+                      <ChevronDown size={16} className={`ml-2 text-slate-400 transition-transform ${isReaderDropdownOpen ? 'rotate-180' : ''}`} />
+                    </button>
+                    
+                    {isReaderDropdownOpen && (
+                      <div className="absolute top-full left-0 mt-2 w-full bg-white border border-slate-100 rounded-xl shadow-xl z-[100] max-h-60 overflow-y-auto py-2 animate-in fade-in slide-in-from-top-2 duration-200">
+                        <button
+                          onClick={() => {
+                            setSelectedReader('All');
+                            setIsReaderDropdownOpen(false);
+                          }}
+                          className={`w-full text-left px-4 py-2 text-sm transition-colors hover:bg-slate-50 ${selectedReader === 'All' ? 'text-indigo-600 font-bold bg-indigo-50/50' : 'text-slate-600'}`}
+                        >
+                          Tất cả {staffType === 'reader' ? 'Reader' : 'Sale'}
+                        </button>
+                        {users.filter(u => u.role === staffType).map(u => (
+                          <button
+                            key={u.id}
+                            onClick={() => {
+                              setSelectedReader(u.id);
+                              setIsReaderDropdownOpen(false);
+                            }}
+                            className={`w-full text-left px-4 py-2 text-sm transition-colors hover:bg-slate-50 ${selectedReader === u.id ? 'text-indigo-600 font-bold bg-indigo-50/50' : 'text-slate-600'}`}
+                          >
+                            {u.full_name}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
-            )}
-            {user.role === 'manager' && (
-              <div className="flex items-center space-x-3">
-                <label className="text-sm font-medium text-slate-500">
-                  {staffType === 'reader' ? 'Reader:' : 'Sale:'}
-                </label>
-                <select 
-                  value={selectedReader}
-                  onChange={(e) => setSelectedReader(e.target.value)}
-                  className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
-                >
-                  <option value="All">Tất cả</option>
-                  {users.filter(u => u.role === staffType).map(u => (
-                    <option key={u.id} value={u.id}>{u.full_name}</option>
-                  ))}
-                </select>
-              </div>
-            )}
-            <div className="flex items-center space-x-3">
-              <label className="text-sm font-medium text-slate-500">Ngày:</label>
-              <select 
-                value={selectedDay}
-                onChange={(e) => setSelectedDay(e.target.value)}
-                className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
-              >
+
+              {/* Day Selector Buttons */}
+              <div className="flex flex-wrap gap-1.5">
                 {['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ nhật'].map(day => (
-                  <option key={day} value={day}>{day}</option>
+                  <button
+                    key={day}
+                    onClick={() => setSelectedDay(day)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${
+                      selectedDay === day 
+                        ? 'bg-indigo-900 border-indigo-900 text-white shadow-sm' 
+                        : 'bg-white border-slate-200 text-slate-500 hover:border-indigo-200 hover:bg-indigo-50/30 hover:text-indigo-600'
+                    }`}
+                  >
+                    {day}
+                  </button>
                 ))}
-              </select>
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="p-6 space-y-8">
-          {(() => {
-            const groupedSales = sales.reduce((acc: Record<string, SaleRecord[]>, sale) => {
-              const effectiveStaffType = user.role === 'manager' ? staffType : user.role;
-              const rawId = effectiveStaffType === 'reader' 
-                ? (sale.reader_id || (sale as any).reader_name)
-                : (sale.sale_id || (sale as any).sale_name);
-              
-              if (!rawId || rawId === 'none' || rawId === 'N/A') return acc;
-              
-              // Try to find canonical ID
-              const staff = users.find(u => 
-                u.id.toLowerCase() === String(rawId).toLowerCase() || 
-                u.full_name.toLowerCase() === String(rawId).toLowerCase()
-              );
-              const sId = staff?.id || rawId;
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm border-collapse">
+              <thead>
+                <tr className="bg-slate-50/50 text-slate-400 uppercase text-[10px] tracking-wider font-bold border-b border-slate-100">
+                  <th className="px-6 py-4">{user.role === 'sale' || (user.role === 'manager' && staffType === 'sale') ? 'Reader' : 'Nhân Viên Sale'}</th>
+                  <th className="px-6 py-4">Khách Hàng</th>
+                  <th className="px-6 py-4">Gói Dịch Vụ</th>
+                  <th className="px-6 py-4 text-right">Số Tiền</th>
+                  <th className="px-6 py-4 text-right">Tiền Tip</th>
+                  {user.role === 'manager' && <th className="px-6 py-4 text-right">Thao tác</th>}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {(() => {
+                  const effectiveStaffType = user.role === 'manager' ? staffType : user.role;
+                  const groupedSales = sales.reduce((acc: Record<string, SaleRecord[]>, sale) => {
+                    const rawId = effectiveStaffType === 'reader' 
+                      ? (sale.reader_id || (sale as any).reader_name)
+                      : (sale.sale_id || (sale as any).sale_name);
+                    
+                    if (!rawId || rawId === 'none' || rawId === 'N/A') return acc;
+                    
+                    const staff = users.find(u => 
+                      u.id.toLowerCase() === String(rawId).toLowerCase() || 
+                      u.full_name.toLowerCase() === String(rawId).toLowerCase()
+                    );
+                    const sId = staff?.id || rawId;
 
-              if (selectedReader !== 'All' && sId !== selectedReader) return acc;
-              if (!acc[sId]) acc[sId] = [];
-              acc[sId].push(sale);
-              return acc;
-            }, {});
+                    if (selectedReader !== 'All' && sId !== selectedReader) return acc;
+                    
+                    // Only group if there are sales for the selected day
+                    if (getDayName(sale.date) === selectedDay) {
+                      if (!acc[sId]) acc[sId] = [];
+                      acc[sId].push(sale);
+                    }
+                    return acc;
+                  }, {});
 
-            const entries = Object.entries(groupedSales);
+                  const entries = Object.entries(groupedSales);
 
-            if (entries.length === 0) {
-              return (
-                <div className="p-12 text-center">
-                  <div className="bg-slate-50 rounded-3xl p-8 border-2 border-dashed border-slate-200">
-                    <p className="text-slate-500 font-medium">Không tìm thấy dữ liệu giao dịch nào cho bộ lọc hiện tại.</p>
-                    <p className="text-slate-400 text-sm mt-1">Vui lòng kiểm tra lại Reader/Sale hoặc Ngày được chọn.</p>
-                  </div>
-                </div>
-              );
-            }
-
-            return entries.map(([staffId, staffSales]) => {
-              const staff = users.find(u => u.id === staffId || u.full_name === staffId);
-              const staffName = staff?.full_name || staffId || 'Không xác định';
-              const effectiveStaffType = user.role === 'manager' ? staffType : user.role;
-              
-              const dailySales = (staffSales as SaleRecord[]).filter(s => getDayName(s.date) === selectedDay);
-              const totalRevenueToday = dailySales.reduce((sum, s) => sum + (Number(s.amount) || 0) + (Number(s.tip) || 0), 0);
-              const totalRevenueThisWeek = (staffSales as SaleRecord[]).reduce((sum, s) => sum + (Number(s.amount) || 0) + (Number(s.tip) || 0), 0);
-              
-              const commissionPercent = staff?.commission_percent || 0;
-              const commissionAmount = (totalRevenueThisWeek * commissionPercent) / 100;
-
-              if (dailySales.length === 0 && (staffSales as SaleRecord[]).length === 0) return null;
-
-              return (
-                <div key={staffId} className="space-y-4">
-                  {user.role === 'manager' && (
-                    <div className="flex items-center space-x-2 pb-2 border-b border-slate-100">
-                      <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center text-indigo-600">
-                        <UserIcon size={16} />
-                      </div>
-                      <h4 className="font-bold text-slate-900">
-                        {effectiveStaffType === 'reader' ? 'Reader:' : 'Sale:'} {staffName}
-                      </h4>
-                    </div>
-                  )}
-
-                  <div className="overflow-x-auto">
-                  <table className="w-full text-left text-sm">
-                    <thead>
-                      <tr className="text-slate-400 uppercase text-[10px] tracking-wider font-bold">
-                        <th className="pb-3 pr-4">{effectiveStaffType === 'reader' ? 'Nhân Viên Sale' : 'Reader'}</th>
-                        <th className="pb-3 pr-4">Khách Hàng</th>
-                        <th className="pb-3 pr-4">Gói Dịch Vụ</th>
-                        <th className="pb-3 pr-4 text-right">Số Tiền</th>
-                        <th className="pb-3 text-right">Tiền Tip</th>
-                        {user.role === 'manager' && <th className="pb-3 text-right">Thao tác</th>}
+                  if (entries.length === 0) {
+                    return (
+                      <tr>
+                        <td colSpan={user.role === 'manager' ? 6 : 5} className="px-6 py-12 text-center">
+                          <div className="flex flex-col items-center justify-center text-slate-400">
+                            <Calendar size={48} className="mb-4 opacity-20" />
+                            <p className="font-medium">Không có giao dịch nào trong ngày {selectedDay}</p>
+                          </div>
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-50">
-                      {dailySales.length > 0 ? (
-                        dailySales.map(s => {
+                    );
+                  }
+
+                  return entries.map(([staffId, staffSales]) => {
+                    const staff = users.find(u => u.id === staffId || u.full_name === staffId);
+                    const staffName = staff?.full_name || staffId || 'Không xác định';
+                    const commissionPercent = staff?.commission_percent || 0;
+
+                    // Calculate stats for this specific reader
+                    const todayRevenue = (staffSales as SaleRecord[]).reduce((sum, s) => sum + (Number(s.amount) || 0) + (Number(s.tip) || 0), 0);
+                    const todayCommission = (todayRevenue * commissionPercent) / 100;
+
+                    // Weekly stats for this reader
+                    const weeklySales = sales.filter(s => {
+                      const rawId = effectiveStaffType === 'reader' 
+                        ? (s.reader_id || (s as any).reader_name)
+                        : (s.sale_id || (s as any).sale_name);
+                      const sStaff = users.find(u => 
+                        u.id.toLowerCase() === String(rawId).toLowerCase() || 
+                        u.full_name.toLowerCase() === String(rawId).toLowerCase()
+                      );
+                      return (sStaff?.id || rawId) === staffId;
+                    });
+                    const weeklyRevenue = weeklySales.reduce((sum, s) => sum + (Number(s.amount) || 0) + (Number(s.tip) || 0), 0);
+                    const weeklyCommission = (weeklyRevenue * commissionPercent) / 100;
+
+                    return (
+                      <React.Fragment key={staffId}>
+                        {/* Group Header Row */}
+                        <tr className="bg-slate-50 border-y border-slate-100/50">
+                          <td colSpan={user.role === 'manager' ? 6 : 5} className="px-6 py-4">
+                            <div className="flex items-center space-x-3">
+                              <div className="w-1.5 h-6 bg-indigo-600 rounded-full"></div>
+                              <div className="flex items-center bg-indigo-50 px-4 py-2 rounded-xl border border-indigo-100 shadow-sm">
+                                <span className="font-black text-indigo-900 text-[13px] uppercase tracking-widest">
+                                  {effectiveStaffType === 'reader' ? 'Reader' : 'Sale'}: {staffName}
+                                </span>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                        {/* Data Rows */}
+                        {(staffSales as SaleRecord[]).map(s => {
                           const otherStaffId = effectiveStaffType === 'reader' 
                             ? (s.sale_id || (s as any).sale_name)
                             : (s.reader_id || (s as any).reader_name);
@@ -447,76 +515,76 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                           const otherStaffName = otherStaff?.full_name || otherStaffId || 'Không xác định';
                           
                           return (
-                            <tr key={s.id} className="group">
-                              <td className="py-3 pr-4 text-slate-600">{otherStaffName}</td>
-                              <td className="py-3 pr-4 font-medium text-slate-900">{s.customer_name}</td>
-                              <td className="py-3 pr-4 text-slate-500">{s.package_name}</td>
-                              <td className="py-3 pr-4 text-right font-medium text-slate-900">{formatVND(s.amount)}</td>
-                              <td className="py-3 text-right text-emerald-600 font-medium">{formatVND(s.tip)}</td>
+                            <tr key={s.id} className="group hover:bg-slate-50/40 transition-colors">
+                              <td className="px-6 py-5 text-slate-500">{otherStaffName}</td>
+                              <td className="px-6 py-5 font-semibold text-slate-800">{s.customer_name}</td>
+                              <td className="px-6 py-5 text-slate-500">{s.package_name}</td>
+                              <td className="px-6 py-5 text-right font-bold text-slate-900">{formatVND(s.amount)}</td>
+                              <td className="px-6 py-5 text-right text-emerald-600 font-bold">{formatVND(s.tip)}</td>
                               {user.role === 'manager' && (
-                                <td className="py-3 text-right">
-                                  <div className="flex items-center justify-end space-x-1">
+                                <td className="px-6 py-5 text-right">
+                                  <div className="flex items-center justify-end space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                     <button 
                                       onClick={() => {
                                         setEditingSale(s);
                                         setView('entry');
                                       }}
-                                      className="p-1.5 text-slate-400 hover:text-indigo-600 transition-colors"
+                                      className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                                      title="Sửa"
                                     >
-                                      <Edit2 size={14} />
+                                      <Edit2 size={16} />
                                     </button>
-                                    
                                     <button 
                                       onClick={() => setDeletingSaleId(s)}
-                                      className="p-1.5 text-slate-400 hover:text-red-600 transition-colors"
+                                      className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                                      title="Xóa"
                                     >
-                                      <Trash2 size={14} />
+                                      <Trash2 size={16} />
                                     </button>
                                   </div>
                                 </td>
                               )}
                             </tr>
                           );
-                        })
-                      ) : (
-                        <tr>
-                          <td colSpan={user.role === 'manager' ? 6 : 5} className="py-4 text-center text-slate-400 italic">Không có dữ liệu cho ngày này</td>
+                        })}
+
+                        {/* Summary Bar for Reader */}
+                        <tr className="bg-slate-50/30">
+                          <td colSpan={user.role === 'manager' ? 6 : 5} className="px-6 py-6 border-t border-slate-100">
+                            <div className="bg-white rounded-xl border border-slate-100 p-4 flex flex-col md:flex-row items-center justify-between gap-6">
+                              {/* Left side: Revenue text */}
+                              <div className="flex flex-wrap items-center gap-8">
+                                <div className="flex flex-col">
+                                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Doanh Thu Hôm Nay</span>
+                                  <span className="text-xl font-bold text-blue-600">{formatVND(todayRevenue)}</span>
+                                </div>
+                                <div className="flex flex-col">
+                                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Doanh Thu Tuần Này</span>
+                                  <span className="text-xl font-bold text-slate-900">{formatVND(weeklyRevenue)}</span>
+                                </div>
+                              </div>
+
+                              {/* Right side: Commission Sub-container */}
+                              <div className="flex items-center justify-between gap-6 bg-emerald-50 px-6 py-4 rounded-xl border border-emerald-100/50 w-full md:w-auto min-w-[300px]">
+                                <div className="flex flex-col">
+                                  <span className="text-[10px] font-bold text-emerald-600/70 uppercase tracking-widest mb-1">Hoa Hồng ({commissionPercent}%)</span>
+                                  <span className="text-xl font-bold text-emerald-700">{formatVND(weeklyCommission)}</span>
+                                  <span className="text-[9px] text-emerald-600/50 font-medium mt-1">Hôm nay: {formatVND(todayCommission)}</span>
+                                </div>
+                                <div className="bg-emerald-100 p-3 rounded-full">
+                                  <Wallet className="text-emerald-600" size={24} />
+                                </div>
+                              </div>
+                            </div>
+                          </td>
                         </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-
-                <div className="bg-slate-50 rounded-xl p-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="flex flex-col">
-                    <span className="text-slate-500 text-xs uppercase font-bold tracking-wider">Doanh Thu Hôm Nay</span>
-                    <span className="font-bold text-indigo-600 text-lg">{formatVND(totalRevenueToday)}</span>
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="text-slate-500 text-xs uppercase font-bold tracking-wider">Doanh Thu Tuần Này</span>
-                    <span className="font-bold text-slate-900 text-lg">{formatVND(totalRevenueThisWeek)}</span>
-                  </div>
-                  <div className="flex flex-col bg-emerald-50 rounded-lg p-2 border border-emerald-100">
-                    <div className="flex items-center justify-between">
-                      <span className="text-emerald-700 text-xs uppercase font-bold tracking-wider">Hoa Hồng ({commissionPercent}%)</span>
-                      <Wallet size={14} className="text-emerald-500" />
-                    </div>
-                    <span className="font-bold text-emerald-600 text-lg">{formatVND(commissionAmount)}</span>
-                  </div>
-                </div>
-              </div>
-            );
-          });
-        })()}
-
-          {sales.length === 0 && (
-            <div className="text-center py-12">
-              <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Calendar className="text-slate-300" size={32} />
-              </div>
-              <p className="text-slate-500">Chưa có dữ liệu doanh thu tuần này</p>
-            </div>
-          )}
+                      </React.Fragment>
+                    );
+                  });
+                })()}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
       <ConfirmModal 

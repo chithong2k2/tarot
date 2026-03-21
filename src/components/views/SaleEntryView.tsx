@@ -47,6 +47,9 @@ export const SaleEntryView: React.FC<SaleEntryViewProps> = ({
     return `https://img.vietqr.io/image/${bankId}-${accountNo}-compact2.png?amount=${amount}&addInfo=${encodeURIComponent(description)}&accountName=${encodeURIComponent(accountName)}`;
   };
 
+  console.log("[SaleEntryView] Current users:", users);
+  console.log("[SaleEntryView] Current saleForm:", saleForm);
+
   return (
     <motion.div 
       key="entry"
