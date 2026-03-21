@@ -14,7 +14,7 @@ import {
   writeBatch
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { User, SaleRecord, Shift, ShiftRegistration, OperatingCost } from '../types';
+import { User, SaleRecord, Shift, ShiftRegistration, OperatingCost, SystemSettings } from '../types';
 
 // Helper to check if Firebase is configured
 const isFirebaseReady = () => !!db;
@@ -259,8 +259,8 @@ export const firebaseService = {
   },
 
   // --- System Settings ---
-  updateSettings: async (settings: { is_locked: boolean }): Promise<FirebaseResponse> => {
-    await setDoc(doc(db, 'settings', 'global'), settings);
+  updateSettings: async (settings: Partial<SystemSettings>): Promise<FirebaseResponse> => {
+    await setDoc(doc(db, 'settings', 'global'), settings, { merge: true });
     return { success: true };
   },
 

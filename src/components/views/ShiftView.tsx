@@ -139,8 +139,10 @@ export const ShiftView: React.FC<ShiftViewProps> = ({
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {shifts.map(shift => {
-            const isRegistered = (user.role === 'reader' ? readerSchedule : saleSchedule).some(r => r.shift_id === shift.id && r.user_id === user.id && r.day_of_week === selectedDay);
-            const registration = (user.role === 'reader' ? readerSchedule : saleSchedule).find(r => r.shift_id === shift.id && r.user_id === user.id && r.day_of_week === selectedDay);
+            const isSaleRole = user.role === 'sale';
+            const schedule = user.role === 'reader' ? readerSchedule : saleSchedule;
+            const isRegistered = schedule.some(r => r.shift_id === shift.id && r.user_id === user.id && r.day_of_week === selectedDay);
+            const registration = schedule.find(r => r.shift_id === shift.id && r.user_id === user.id && r.day_of_week === selectedDay);
 
             return (
               <div key={shift.id} className={`bg-white p-6 rounded-2xl border ${isRegistered ? 'border-indigo-600 ring-2 ring-indigo-50' : 'border-slate-100'} card-shadow transition-all`}>
@@ -447,7 +449,12 @@ export const ShiftView: React.FC<ShiftViewProps> = ({
               </div>
               <div className="p-6 space-y-4">
                 <div className="max-h-64 overflow-y-auto space-y-2 pr-2">
-                  {users.filter(u => u.role === manualAddData.type && u.status !== 'inactive').map(u => (
+                  {users.filter(u => {
+                    const isTargetRole = manualAddData.type === 'reader' 
+                      ? u.role === 'reader' 
+                      : u.role === 'sale';
+                    return isTargetRole && u.status !== 'inactive';
+                  }).map(u => (
                     <button
                       key={u.id}
                       onClick={() => handleManualAdd(u.id)}

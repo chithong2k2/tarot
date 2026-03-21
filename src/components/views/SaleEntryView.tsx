@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { Trash2 } from 'lucide-react';
-import { User, SaleRecord } from '../../types';
+import { Trash2, QrCode, X } from 'lucide-react';
+import { User, SaleRecord, SystemSettings } from '../../types';
 import { formatVND } from '../DashboardComponents';
 import { firebaseService } from '../../services/firebaseService';
 
@@ -17,6 +17,7 @@ interface SaleEntryViewProps {
   fetchData: () => Promise<void>;
   setView: (view: any) => void;
   loading: boolean;
+  systemSettings?: SystemSettings;
 }
 
 export const SaleEntryView: React.FC<SaleEntryViewProps> = ({
@@ -28,9 +29,23 @@ export const SaleEntryView: React.FC<SaleEntryViewProps> = ({
   users,
   fetchData,
   setView,
-  loading
+  loading,
+  systemSettings
 }) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false);
+  const [showQR, setShowQR] = React.useState(false);
+
+  const generateVietQR = () => {
+    if (!systemSettings?.bank_account_number) return '';
+    
+    const bankId = systemSettings.bank_name === 'MBBank' ? 'MB' : '970422'; // Default to MB or generic
+    const accountNo = systemSettings.bank_account_number;
+    const amount = saleForm.amount || 0;
+    const description = `THANH TOAN ${saleForm.customer_name?.toUpperCase() || 'KHACH HANG'}`;
+    const accountName = systemSettings.bank_account_name || '';
+
+    return `https://img.vietqr.io/image/${bankId}-${accountNo}-compact2.png?amount=${amount}&addInfo=${encodeURIComponent(description)}&accountName=${encodeURIComponent(accountName)}`;
+  };
 
   return (
     <motion.div 
@@ -142,6 +157,16 @@ export const SaleEntryView: React.FC<SaleEntryViewProps> = ({
           </div>
 
           <div className="flex flex-col gap-4">
+            {systemSettings?.bank_account_number && (
+              <button 
+                type="button"
+                onClick={() => setShowQR(true)}
+                className="w-full bg-emerald-50 text-emerald-600 font-bold py-4 rounded-2xl hover:bg-emerald-100 transition-all flex items-center justify-center space-x-2"
+              >
+                <QrCode size={18} />
+                <span>Tạo mã QR Thanh Toán</span>
+              </button>
+            )}
             {editingSale && (
               <div className="flex flex-col gap-3">
                 <button 
@@ -202,6 +227,46 @@ export const SaleEntryView: React.FC<SaleEntryViewProps> = ({
         title="Xác nhận xóa giao dịch"
         message={`Bạn có chắc chắn muốn xóa giao dịch của khách hàng "${editingSale?.customer_name}"?`}
       />
+
+      {/* QR Code Modal */}
+      {showQR && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden"
+          >
+            <div className="bg-emerald-600 p-6 text-white flex justify-between items-center">
+              <h3 className="text-xl font-bold">Mã QR Thanh Toán</h3>
+              <button onClick={() => setShowQR(false)} className="text-white/60 hover:text-white">
+                <X size={24} />
+              </button>
+            </div>
+            <div className="p-8 flex flex-col items-center space-y-6">
+              <div className="bg-white p-4 rounded-2xl border-2 border-slate-100 shadow-sm">
+                <img 
+                  src={generateVietQR()} 
+                  alt="VietQR" 
+                  className="w-full max-w-[240px] h-auto"
+                  referrerPolicy="no-referrer"
+                />
+              </div>
+              <div className="text-center">
+                <p className="text-sm text-slate-500">Quét mã để thanh toán nhanh qua</p>
+                <p className="text-lg font-bold text-slate-900">{systemSettings?.bank_name || 'Ngân hàng'}</p>
+                <p className="text-xs text-slate-400 mt-1">{systemSettings?.bank_account_number}</p>
+                <p className="text-xs text-slate-400">{systemSettings?.bank_account_name}</p>
+              </div>
+              <button 
+                onClick={() => setShowQR(false)}
+                className="w-full py-3 rounded-xl bg-slate-100 text-slate-600 font-bold hover:bg-slate-200 transition-all"
+              >
+                Đóng
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </motion.div>
   );
 };

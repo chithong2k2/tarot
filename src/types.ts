@@ -45,6 +45,9 @@ export interface DashboardSummary {
   netProfit: number;
   revenueByDay: { name: string; value: number }[];
   profitByDay: { name: string; value: number }[];
+  commissionByDay: { name: string; value: number }[];
+  readerCommissionByDay: { name: string; value: number }[];
+  saleCommissionByDay: { name: string; value: number }[];
   topReader: { name: string; amount: number };
   topSale: { name: string; amount: number };
 }
@@ -74,4 +77,16 @@ export interface ShiftRegistration {
 export interface SystemSettings {
   id: string;
   is_locked: boolean;
+  gas_api_url?: string;
+}
+
+export interface BankTransaction {
+  id: string;
+  transaction_date: string;
+  amount: number;
+  description: string;
+  type: 'IN' | 'OUT';
+  account_number?: string;
+  reference_number: string;
+  created_at?: string;
 }

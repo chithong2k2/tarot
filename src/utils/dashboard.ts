@@ -17,6 +17,15 @@ export const calculateDashboardSummary = (sales: SaleRecord[], users: User[], op
   const expensesByDay: Record<string, number> = {
     'Thứ 2': 0, 'Thứ 3': 0, 'Thứ 4': 0, 'Thứ 5': 0, 'Thứ 6': 0, 'Thứ 7': 0, 'Chủ nhật': 0
   };
+  const commissionByDay: Record<string, number> = {
+    'Thứ 2': 0, 'Thứ 3': 0, 'Thứ 4': 0, 'Thứ 5': 0, 'Thứ 6': 0, 'Thứ 7': 0, 'Chủ nhật': 0
+  };
+  const readerCommissionByDay: Record<string, number> = {
+    'Thứ 2': 0, 'Thứ 3': 0, 'Thứ 4': 0, 'Thứ 5': 0, 'Thứ 6': 0, 'Thứ 7': 0, 'Chủ nhật': 0
+  };
+  const saleCommissionByDay: Record<string, number> = {
+    'Thứ 2': 0, 'Thứ 3': 0, 'Thứ 4': 0, 'Thứ 5': 0, 'Thứ 6': 0, 'Thứ 7': 0, 'Chủ nhật': 0
+  };
   const readerStats: Record<string, number> = {};
   const saleStats: Record<string, number> = {};
 
@@ -58,28 +67,40 @@ export const calculateDashboardSummary = (sales: SaleRecord[], users: User[], op
       revenueByDay[dayName] += amount + tip;
     }
     
-    const rId = s.reader_id || (s as any).reader_name;
-    const reader = userMap.get(rId) || users.find(u => u.full_name === rId);
+    const rId = String(s.reader_id || (s as any).reader_name || '').trim();
+    const reader = userMap.get(rId) || users.find(u => u.id === rId || u.full_name.toLowerCase() === rId.toLowerCase());
     if (reader) {
-      const commission = (amount * (Number(reader.commission_percent) / 100));
+      const commission = ((amount + tip) * (Number(reader.commission_percent) / 100));
       totalReaderCommission += commission;
-      readerStats[reader.full_name] = (readerStats[reader.full_name] || 0) + amount;
+      readerStats[reader.full_name] = (readerStats[reader.full_name] || 0) + amount + tip;
       if (expensesByDay[dayName] !== undefined) {
         expensesByDay[dayName] += commission;
       }
-    } else if (rId) {
+      if (commissionByDay[dayName] !== undefined) {
+        commissionByDay[dayName] += commission;
+      }
+      if (readerCommissionByDay[dayName] !== undefined) {
+        readerCommissionByDay[dayName] += commission;
+      }
+    } else if (rId && rId !== 'N/A') {
       readerStats[rId] = (readerStats[rId] || 0) + amount;
     }
 
-    const sId = s.sale_id || (s as any).sale_name;
-    if (sId && sId !== 'none') {
-      const sale = userMap.get(sId) || users.find(u => u.full_name === sId);
+    const sId = String(s.sale_id || (s as any).sale_name || '').trim();
+    if (sId && sId !== 'none' && sId !== 'N/A') {
+      const sale = userMap.get(sId) || users.find(u => u.id === sId || u.full_name.toLowerCase() === sId.toLowerCase());
       if (sale) {
-        const commission = (amount * (Number(sale.commission_percent) / 100));
+        const commission = ((amount + tip) * (Number(sale.commission_percent) / 100));
         totalSaleCommission += commission;
-        saleStats[sale.full_name] = (saleStats[sale.full_name] || 0) + amount;
+        saleStats[sale.full_name] = (saleStats[sale.full_name] || 0) + amount + tip;
         if (expensesByDay[dayName] !== undefined) {
           expensesByDay[dayName] += commission;
+        }
+        if (commissionByDay[dayName] !== undefined) {
+          commissionByDay[dayName] += commission;
+        }
+        if (saleCommissionByDay[dayName] !== undefined) {
+          saleCommissionByDay[dayName] += commission;
         }
       } else {
         saleStats[sId] = (saleStats[sId] || 0) + amount;
@@ -108,6 +129,9 @@ export const calculateDashboardSummary = (sales: SaleRecord[], users: User[], op
       name, 
       value: value - (expensesByDay[name] || 0) 
     })),
+    commissionByDay: Object.entries(commissionByDay).map(([name, value]) => ({ name, value })),
+    readerCommissionByDay: Object.entries(readerCommissionByDay).map(([name, value]) => ({ name, value })),
+    saleCommissionByDay: Object.entries(saleCommissionByDay).map(([name, value]) => ({ name, value })),
     topReader: { name: topReaderEntry ? topReaderEntry[0] : 'Chưa có', amount: topReaderEntry ? topReaderEntry[1] : 0 },
     topSale: { name: topSaleEntry ? topSaleEntry[0] : 'Chưa có', amount: topSaleEntry ? topSaleEntry[1] : 0 }
   };
@@ -124,6 +148,9 @@ export const INITIAL_SUMMARY: DashboardSummary = {
   netProfit: 0,
   revenueByDay: [],
   profitByDay: [],
+  commissionByDay: [],
+  readerCommissionByDay: [],
+  saleCommissionByDay: [],
   topReader: { name: 'N/A', amount: 0 },
   topSale: { name: 'N/A', amount: 0 }
 };

@@ -144,10 +144,64 @@ function doPost(e) {
       return registerSaleShift(saleShiftsSheet, data.registration);
     case 'deleteSaleShift':
       return deleteSaleShift(saleShiftsSheet, data.id);
+    case 'syncAllData':
+      return syncAllData(ss, data.payload);
     default:
       return ContentService.createTextOutput(JSON.stringify({ success: false, message: "Unknown action: " + action }))
         .setMimeType(ContentService.MimeType.JSON);
   }
+}
+
+function syncAllData(ss, payload) {
+  const { users, sales, shifts, readerShifts, saleShifts } = payload;
+  
+  // Helper to clear and set headers
+  function resetSheet(sheetName, headers) {
+    let sheet = ss.getSheetByName(sheetName);
+    if (!sheet) sheet = ss.insertSheet(sheetName);
+    sheet.clear();
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+    sheet.getRange(1, 1, 1, headers.length).setFontWeight('bold').setBackground('#f3f3f3');
+    sheet.setFrozenRows(1);
+    return sheet;
+  }
+
+  // 1. Sync USERS
+  const usersSheet = resetSheet('USERS', ['id', 'username', 'password', 'role', 'full_name', 'bank_account', 'commission_percent']);
+  if (users && users.length > 0) {
+    const rows = users.map(u => [u.id, u.username, u.password, u.role, u.full_name, u.bank_account, u.commission_percent]);
+    usersSheet.getRange(2, 1, rows.length, rows[0].length).setValues(rows);
+  }
+
+  // 2. Sync SALES_DATA
+  const salesSheet = resetSheet('SALES_DATA', ['id', 'reader_name', 'sale_name', 'customer_name', 'package_name', 'amount', 'tip', 'date']);
+  if (sales && sales.length > 0) {
+    const rows = sales.map(s => [s.id, s.reader_name, s.sale_name, s.customer_name, s.package_name, s.amount, s.tip, s.date]);
+    salesSheet.getRange(2, 1, rows.length, rows[0].length).setValues(rows);
+  }
+
+  // 3. Sync SHIFTS
+  const shiftsSheet = resetSheet('SHIFTS', ['shift_id', 'shift_name', 'start_time', 'end_time']);
+  if (shifts && shifts.length > 0) {
+    const rows = shifts.map(s => [s.id, s.shift_name, s.start_time, s.end_time]);
+    shiftsSheet.getRange(2, 1, rows.length, rows[0].length).setValues(rows);
+  }
+
+  // 4. Sync READER_SHIFTS
+  const readerShiftsSheet = resetSheet('READER_SHIFTS', ['id', 'staff_name', 'shift_id', 'day_of_week']);
+  if (readerShifts && readerShifts.length > 0) {
+    const rows = readerShifts.map(r => [r.id, r.staff_name, r.shift_id, r.day_of_week]);
+    readerShiftsSheet.getRange(2, 1, rows.length, rows[0].length).setValues(rows);
+  }
+
+  // 5. Sync SALE_SHIFTS
+  const saleShiftsSheet = resetSheet('SALE_SHIFTS', ['id', 'staff_name', 'shift_id', 'day_of_week']);
+  if (saleShifts && saleShifts.length > 0) {
+    const rows = saleShifts.map(s => [s.id, s.staff_name, s.shift_id, s.day_of_week]);
+    saleShiftsSheet.getRange(2, 1, rows.length, rows[0].length).setValues(rows);
+  }
+
+  return response({ success: true, message: "Đồng bộ dữ liệu thành công!" });
 }
 
 function getSheetData(sheet) {
@@ -472,15 +526,15 @@ function getDashboardSummary(ss) {
     
     // Commissions
     if (userMap[readerName]) {
-      const comm = amount * (userMap[readerName].commission / 100);
+      const comm = (amount + tip) * (userMap[readerName].commission / 100);
       totalReaderCommission += comm;
-      readerStats[readerName] = (readerStats[readerName] || 0) + amount;
+      readerStats[readerName] = (readerStats[readerName] || 0) + amount + tip;
     }
     
     if (userMap[saleName]) {
-      const comm = amount * (userMap[saleName].commission / 100);
+      const comm = (amount + tip) * (userMap[saleName].commission / 100);
       totalSaleCommission += comm;
-      saleStats[saleName] = (saleStats[saleName] || 0) + amount;
+      saleStats[saleName] = (saleStats[saleName] || 0) + amount + tip;
     }
   });
 

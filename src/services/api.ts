@@ -111,6 +111,9 @@ export const apiService = {
   deleteSaleShift: (id: string) => 
     callApi('deleteSaleShift', { id }),
     
+  syncAllData: (payload: any) =>
+    callApi('syncAllData', { payload }),
+    
   testConnection: async () => {
     if (!GAS_API_URL) return { success: false, message: 'URL chưa cấu hình' };
     try {

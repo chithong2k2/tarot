@@ -83,13 +83,13 @@ export const exportToExcel = (sales: SaleRecord[], users: User[], summary: Dashb
       // Calculate commissions (salary)
       const rId = s.reader_id || (s as any).reader_name;
       const reader = userMap.get(rId) || users.find(u => u.full_name === rId);
-      const rComm = reader ? (amount * (Number(reader.commission_percent) / 100)) : 0;
+      const rComm = reader ? ((amount + tip) * (Number(reader.commission_percent) / 100)) : 0;
 
       const sId = s.sale_id || (s as any).sale_name;
       let sComm = 0;
       if (sId && sId !== 'none') {
         const sale = userMap.get(sId) || users.find(u => u.full_name === sId);
-        sComm = sale ? (amount * (Number(sale.commission_percent) / 100)) : 0;
+        sComm = sale ? ((amount + tip) * (Number(sale.commission_percent) / 100)) : 0;
       }
 
       const salary = rComm + sComm;
@@ -145,7 +145,7 @@ export const exportToExcel = (sales: SaleRecord[], users: User[], summary: Dashb
     if (!readerSummary[rName]) readerSummary[rName] = { revenue: 0, tip: 0, commission: 0 };
     readerSummary[rName].revenue += amount;
     readerSummary[rName].tip += tip;
-    if (reader) readerSummary[rName].commission += (amount * (Number(reader.commission_percent) / 100));
+    if (reader) readerSummary[rName].commission += ((amount + tip) * (Number(reader.commission_percent) / 100));
 
     // Sale
     const sId = s.sale_id || (s as any).sale_name;
@@ -155,7 +155,7 @@ export const exportToExcel = (sales: SaleRecord[], users: User[], summary: Dashb
       if (!saleSummary[sName]) saleSummary[sName] = { revenue: 0, tip: 0, commission: 0 };
       saleSummary[sName].revenue += amount;
       saleSummary[sName].tip += tip;
-      if (sale) saleSummary[sName].commission += (amount * (Number(sale.commission_percent) / 100));
+      if (sale) saleSummary[sName].commission += ((amount + tip) * (Number(sale.commission_percent) / 100));
     }
   });
 

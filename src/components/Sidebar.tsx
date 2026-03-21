@@ -11,7 +11,8 @@ import {
   CalendarCheck,
   Receipt,
   Settings,
-  X
+  X,
+  CreditCard
 } from 'lucide-react';
 import { User } from '../types';
 
@@ -113,6 +114,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 label="Chi Phí" 
                 active={view === 'costs'} 
                 onClick={() => { setView('costs'); setIsSidebarOpen(false); }} 
+              />
+              <SidebarItem 
+                icon={<CreditCard size={20} />} 
+                label="Lịch Sử Ngân Hàng" 
+                active={view === 'bank_history'} 
+                onClick={() => { setView('bank_history'); setIsSidebarOpen(false); }} 
               />
             </>
           )}

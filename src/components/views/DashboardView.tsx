@@ -59,6 +59,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   setEditingSale,
   setView
 }) => {
+  const [staffType, setStaffType] = React.useState<'reader' | 'sale'>(user.role === 'sale' ? 'sale' : 'reader');
   const [showConfirmSeed, setShowConfirmSeed] = React.useState(false);
   const [isSeeding, setIsSeeding] = React.useState(false);
 
@@ -181,7 +182,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         {user.role !== 'manager' && (
           <StatCard 
             title="Hoa Hồng Của Bạn" 
-            value={formatVND((summary?.totalReaderCommission || 0) + (summary?.totalSaleCommission || 0))} 
+            value={formatVND(user.role === 'reader' ? (summary?.totalReaderCommission || 0) : (summary?.totalSaleCommission || 0))} 
             icon={<Wallet size={24} />} 
             color="bg-purple-600"
           />
@@ -192,7 +193,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         {/* Chart */}
         <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-100 card-shadow">
           <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-bold text-slate-900">Biểu Đồ Doanh Thu & Lợi Nhuận</h3>
+            <h3 className="text-lg font-bold text-slate-900">
+              {user.role === 'manager' ? 'Biểu Đồ Doanh Thu & Lợi Nhuận' : 'Biểu Đồ Doanh Thu & Hoa Hồng'}
+            </h3>
             <div className="flex items-center gap-4 text-xs font-bold">
               <div className="flex items-center gap-1.5">
                 <div className="w-3 h-3 bg-indigo-600/60 rounded-sm"></div>
@@ -200,7 +203,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </div>
               <div className="flex items-center gap-1.5">
                 <div className="w-3 h-3 bg-emerald-500 rounded-full"></div>
-                <span className="text-slate-500">Lợi nhuận</span>
+                <span className="text-slate-500">
+                  {user.role === 'manager' ? 'Lợi nhuận' : 'Hoa hồng'}
+                </span>
               </div>
             </div>
           </div>
@@ -209,7 +214,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <ComposedChart data={(summary?.revenueByDay || []).map((item, index) => ({
                 name: item.name,
                 revenue: item.value,
-                profit: summary?.profitByDay[index]?.value || 0
+                secondary: user.role === 'manager' 
+                  ? (summary?.profitByDay[index]?.value || 0)
+                  : user.role === 'reader'
+                    ? (summary?.readerCommissionByDay[index]?.value || 0)
+                    : (summary?.saleCommissionByDay[index]?.value || 0)
               }))}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                 <XAxis 
@@ -228,7 +237,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <Tooltip 
                   cursor={{ fill: '#f8fafc' }}
                   contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                  formatter={(value: number, name: string) => [formatVND(value), name === 'revenue' ? 'Doanh thu' : 'Lợi nhuận']}
+                  formatter={(value: number, name: string) => [
+                    formatVND(value), 
+                    name === 'revenue' ? 'Doanh thu' : (user.role === 'manager' ? 'Lợi nhuận' : 'Hoa hồng')
+                  ]}
                 />
                 <Bar dataKey="revenue" radius={[6, 6, 0, 0]}>
                   {(summary?.revenueByDay || []).map((entry, index) => {
@@ -247,7 +259,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 </Bar>
                 <Line 
                   type="monotone" 
-                  dataKey="profit" 
+                  dataKey="secondary" 
                   stroke="#10b981" 
                   strokeWidth={3} 
                   dot={{ r: 4, fill: '#10b981', strokeWidth: 2, stroke: '#fff' }}
@@ -299,18 +311,36 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       {/* Detailed Table Section */}
       <div className="bg-white rounded-2xl border border-slate-100 card-shadow overflow-hidden">
         <div className="p-6 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <h3 className="text-lg font-bold text-slate-900">BẢNG CHI TIẾT DOANH THU THEO NGÀY</h3>
+          <h3 className="text-lg font-bold text-slate-900 uppercase">Chi tiết doanh thu theo ngày</h3>
           <div className="flex flex-wrap items-center gap-4">
             {user.role === 'manager' && (
               <div className="flex items-center space-x-3">
-                <label className="text-sm font-medium text-slate-500">Reader:</label>
+                <label className="text-sm font-medium text-slate-500">Xem theo:</label>
+                <select 
+                  value={staffType}
+                  onChange={(e) => {
+                    setStaffType(e.target.value as 'reader' | 'sale');
+                    setSelectedReader('All');
+                  }}
+                  className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="reader">Reader</option>
+                  <option value="sale">Sale</option>
+                </select>
+              </div>
+            )}
+            {user.role === 'manager' && (
+              <div className="flex items-center space-x-3">
+                <label className="text-sm font-medium text-slate-500">
+                  {staffType === 'reader' ? 'Reader:' : 'Sale:'}
+                </label>
                 <select 
                   value={selectedReader}
                   onChange={(e) => setSelectedReader(e.target.value)}
                   className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
                 >
-                  <option value="All">Tất cả Reader</option>
-                  {users.filter(u => u.role === 'reader').map(u => (
+                  <option value="All">Tất cả</option>
+                  {users.filter(u => u.role === staffType).map(u => (
                     <option key={u.id} value={u.id}>{u.full_name}</option>
                   ))}
                 </select>
@@ -332,37 +362,73 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
 
         <div className="p-6 space-y-8">
-          {Object.entries(
-            sales.reduce((acc: Record<string, SaleRecord[]>, sale) => {
-              const rId = sale.reader_id || (sale as any).reader_name || 'unknown';
-              if (selectedReader !== 'All' && rId !== selectedReader) return acc;
-              if (!acc[rId]) acc[rId] = [];
-              acc[rId].push(sale);
+          {(() => {
+            const groupedSales = sales.reduce((acc: Record<string, SaleRecord[]>, sale) => {
+              const effectiveStaffType = user.role === 'manager' ? staffType : user.role;
+              const rawId = effectiveStaffType === 'reader' 
+                ? (sale.reader_id || (sale as any).reader_name)
+                : (sale.sale_id || (sale as any).sale_name);
+              
+              if (!rawId || rawId === 'none' || rawId === 'N/A') return acc;
+              
+              // Try to find canonical ID
+              const staff = users.find(u => 
+                u.id.toLowerCase() === String(rawId).toLowerCase() || 
+                u.full_name.toLowerCase() === String(rawId).toLowerCase()
+              );
+              const sId = staff?.id || rawId;
+
+              if (selectedReader !== 'All' && sId !== selectedReader) return acc;
+              if (!acc[sId]) acc[sId] = [];
+              acc[sId].push(sale);
               return acc;
-            }, {})
-          ).map(([readerId, readerSales]) => {
-            const reader = users.find(u => u.id === readerId || u.full_name === readerId);
-            const readerName = reader?.full_name || readerId || 'Unknown Reader';
-            const dailySales = (readerSales as SaleRecord[]).filter(s => getDayName(s.date) === selectedDay);
-            const totalRevenueToday = dailySales.reduce((sum, s) => sum + (Number(s.amount) || 0) + (Number(s.tip) || 0), 0);
-            const totalRevenueThisWeek = (readerSales as SaleRecord[]).reduce((sum, s) => sum + (Number(s.amount) || 0) + (Number(s.tip) || 0), 0);
+            }, {});
 
-            if (dailySales.length === 0 && (readerSales as SaleRecord[]).length === 0) return null;
+            const entries = Object.entries(groupedSales);
 
-            return (
-              <div key={readerId} className="space-y-4">
-                <div className="flex items-center space-x-2 pb-2 border-b border-slate-100">
-                  <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center text-indigo-600">
-                    <UserIcon size={16} />
+            if (entries.length === 0) {
+              return (
+                <div className="p-12 text-center">
+                  <div className="bg-slate-50 rounded-3xl p-8 border-2 border-dashed border-slate-200">
+                    <p className="text-slate-500 font-medium">Không tìm thấy dữ liệu giao dịch nào cho bộ lọc hiện tại.</p>
+                    <p className="text-slate-400 text-sm mt-1">Vui lòng kiểm tra lại Reader/Sale hoặc Ngày được chọn.</p>
                   </div>
-                  <h4 className="font-bold text-slate-900">Reader: {readerName}</h4>
                 </div>
+              );
+            }
 
-                <div className="overflow-x-auto">
+            return entries.map(([staffId, staffSales]) => {
+              const staff = users.find(u => u.id === staffId || u.full_name === staffId);
+              const staffName = staff?.full_name || staffId || 'Không xác định';
+              const effectiveStaffType = user.role === 'manager' ? staffType : user.role;
+              
+              const dailySales = (staffSales as SaleRecord[]).filter(s => getDayName(s.date) === selectedDay);
+              const totalRevenueToday = dailySales.reduce((sum, s) => sum + (Number(s.amount) || 0) + (Number(s.tip) || 0), 0);
+              const totalRevenueThisWeek = (staffSales as SaleRecord[]).reduce((sum, s) => sum + (Number(s.amount) || 0) + (Number(s.tip) || 0), 0);
+              
+              const commissionPercent = staff?.commission_percent || 0;
+              const commissionAmount = (totalRevenueThisWeek * commissionPercent) / 100;
+
+              if (dailySales.length === 0 && (staffSales as SaleRecord[]).length === 0) return null;
+
+              return (
+                <div key={staffId} className="space-y-4">
+                  {user.role === 'manager' && (
+                    <div className="flex items-center space-x-2 pb-2 border-b border-slate-100">
+                      <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center text-indigo-600">
+                        <UserIcon size={16} />
+                      </div>
+                      <h4 className="font-bold text-slate-900">
+                        {effectiveStaffType === 'reader' ? 'Reader:' : 'Sale:'} {staffName}
+                      </h4>
+                    </div>
+                  )}
+
+                  <div className="overflow-x-auto">
                   <table className="w-full text-left text-sm">
                     <thead>
                       <tr className="text-slate-400 uppercase text-[10px] tracking-wider font-bold">
-                        <th className="pb-3 pr-4">Nhân Viên Sale</th>
+                        <th className="pb-3 pr-4">{effectiveStaffType === 'reader' ? 'Nhân Viên Sale' : 'Reader'}</th>
                         <th className="pb-3 pr-4">Khách Hàng</th>
                         <th className="pb-3 pr-4">Gói Dịch Vụ</th>
                         <th className="pb-3 pr-4 text-right">Số Tiền</th>
@@ -373,12 +439,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     <tbody className="divide-y divide-slate-50">
                       {dailySales.length > 0 ? (
                         dailySales.map(s => {
-                          const sId = s.sale_id || (s as any).sale_name || 'unknown';
-                          const saleUser = users.find(u => u.id === sId || u.full_name === sId);
-                          const saleName = saleUser?.full_name || sId || 'Unknown Sale';
+                          const otherStaffId = effectiveStaffType === 'reader' 
+                            ? (s.sale_id || (s as any).sale_name)
+                            : (s.reader_id || (s as any).reader_name);
+                          
+                          const otherStaff = users.find(u => u.id === otherStaffId || u.full_name === otherStaffId);
+                          const otherStaffName = otherStaff?.full_name || otherStaffId || 'Không xác định';
+                          
                           return (
                             <tr key={s.id} className="group">
-                              <td className="py-3 pr-4 text-slate-600">{saleName}</td>
+                              <td className="py-3 pr-4 text-slate-600">{otherStaffName}</td>
                               <td className="py-3 pr-4 font-medium text-slate-900">{s.customer_name}</td>
                               <td className="py-3 pr-4 text-slate-500">{s.package_name}</td>
                               <td className="py-3 pr-4 text-right font-medium text-slate-900">{formatVND(s.amount)}</td>
@@ -417,19 +487,27 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   </table>
                 </div>
 
-                <div className="bg-slate-50 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="flex items-center space-x-2">
-                    <span className="text-slate-500 text-sm">Tổng Doanh Thu Hôm Nay:</span>
-                    <span className="font-bold text-indigo-600">{formatVND(totalRevenueToday)}</span>
+                <div className="bg-slate-50 rounded-xl p-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="flex flex-col">
+                    <span className="text-slate-500 text-xs uppercase font-bold tracking-wider">Doanh Thu Hôm Nay</span>
+                    <span className="font-bold text-indigo-600 text-lg">{formatVND(totalRevenueToday)}</span>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <span className="text-slate-500 text-sm">Tổng Doanh Thu Tuần Này:</span>
-                    <span className="font-bold text-emerald-600">{formatVND(totalRevenueThisWeek)}</span>
+                  <div className="flex flex-col">
+                    <span className="text-slate-500 text-xs uppercase font-bold tracking-wider">Doanh Thu Tuần Này</span>
+                    <span className="font-bold text-slate-900 text-lg">{formatVND(totalRevenueThisWeek)}</span>
+                  </div>
+                  <div className="flex flex-col bg-emerald-50 rounded-lg p-2 border border-emerald-100">
+                    <div className="flex items-center justify-between">
+                      <span className="text-emerald-700 text-xs uppercase font-bold tracking-wider">Hoa Hồng ({commissionPercent}%)</span>
+                      <Wallet size={14} className="text-emerald-500" />
+                    </div>
+                    <span className="font-bold text-emerald-600 text-lg">{formatVND(commissionAmount)}</span>
                   </div>
                 </div>
               </div>
             );
-          })}
+          });
+        })()}
 
           {sales.length === 0 && (
             <div className="text-center py-12">

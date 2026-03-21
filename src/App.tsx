@@ -12,6 +12,7 @@ import { CostsView } from './components/views/CostsView';
 import { SettingsView } from './components/views/SettingsView';
 import { LoginView } from './components/views/LoginView';
 import { calculateDashboardSummary, INITIAL_SUMMARY } from './utils/dashboard';
+import { apiService } from './services/api';
 import { Menu, X } from 'lucide-react';
 
 export default function App() {
@@ -33,7 +34,16 @@ export default function App() {
     const days = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
     return days[new Date().getDay()];
   });
-  const [selectedReader, setSelectedReader] = useState<string>('All');
+  const [selectedReader, setSelectedReader] = useState<string>(() => {
+    try {
+      const savedUser = localStorage.getItem('tarot_user');
+      if (savedUser) {
+        const u = JSON.parse(savedUser);
+        if (u.role !== 'manager') return u.id;
+      }
+    } catch (e) {}
+    return 'All';
+  });
 
   // Safety timeout for loading state
   useEffect(() => {
@@ -69,12 +79,55 @@ export default function App() {
         const safeSaleShifts = (Array.isArray(saleShifts) ? saleShifts : []).map((s: any, i: number) => ({ ...s, id: s.id || `s-${i}` }));
         const safeSettings = settings || { id: 'global', is_locked: false };
 
-        // Filter sales based on permissions
-        let filteredSales = safeSales;
-        if (user && user.role === 'reader') {
-          filteredSales = safeSales.filter(s => s.reader_id === user.id);
-        } else if (user && user.role === 'sale') {
-          filteredSales = safeSales.filter(s => s.sale_id === user.id);
+        // 1. Sync current user data first to have latest info for filtering
+        let activeUser = user;
+        if (user) {
+          const currentUserData = safeUsers.find(u => u.id === user.id);
+          if (currentUserData) {
+            activeUser = { ...user, ...currentUserData };
+            // Only update state if something actually changed to avoid loops
+            if (JSON.stringify(activeUser) !== JSON.stringify(user)) {
+              setUser(activeUser);
+              localStorage.setItem('tarot_user', JSON.stringify(activeUser));
+            }
+          }
+        }
+
+        // 2. Enrich sales with names for better filtering and display
+        const enrichedSales = safeSales.map(s => {
+          const reader = safeUsers.find(u => u.id === s.reader_id || u.full_name === s.reader_id);
+          const sale = safeUsers.find(u => u.id === s.sale_id || u.full_name === s.sale_id);
+          return {
+            ...s,
+            reader_name: reader?.full_name || s.reader_id || 'N/A',
+            sale_name: sale?.full_name || s.sale_id || 'N/A'
+          };
+        });
+
+        // 3. Filter sales based on permissions using the active user
+        let filteredSales = enrichedSales;
+        if (activeUser && (activeUser.role === 'reader' || activeUser.role === 'sale')) {
+          const userId = activeUser.id.trim().toLowerCase();
+          const userFullName = activeUser.full_name.trim().toLowerCase();
+          
+          console.log(`[App] Filtering sales for ${activeUser.role}: ${activeUser.full_name} (${activeUser.id})`);
+          
+          filteredSales = enrichedSales.filter(s => {
+            const readerId = String(s.reader_id || '').trim().toLowerCase();
+            const saleId = String(s.sale_id || '').trim().toLowerCase();
+            const readerName = String(s.reader_name || '').trim().toLowerCase();
+            const saleName = String(s.sale_name || '').trim().toLowerCase();
+            
+            let match = false;
+            if (activeUser.role === 'reader') {
+              match = readerId === userId || readerName === userFullName;
+            } else {
+              match = saleId === userId || saleName === userFullName;
+            }
+            return match;
+          });
+          
+          console.log(`[App] Filtered sales count: ${filteredSales.length} out of ${enrichedSales.length}`);
         }
 
         setUsers(safeUsers);
@@ -84,19 +137,6 @@ export default function App() {
         setReaderSchedule(safeReaderShifts);
         setSaleSchedule(safeSaleShifts);
         setSettings(safeSettings);
-        
-        // Sync current user data if found in the users list
-        if (user) {
-          const currentUserData = safeUsers.find(u => u.id === user.id);
-          if (currentUserData) {
-            const updatedUser = { ...user, ...currentUserData };
-            // Only update if something actually changed to avoid loops
-            if (JSON.stringify(updatedUser) !== JSON.stringify(user)) {
-              setUser(updatedUser);
-              localStorage.setItem('tarot_user', JSON.stringify(updatedUser));
-            }
-          }
-        }
         
         const newSummary = calculateDashboardSummary(filteredSales, safeUsers, safeCosts);
         setSummary(newSummary);
@@ -121,6 +161,11 @@ export default function App() {
 
   useEffect(() => {
     if (user) {
+      if (user.role !== 'manager') {
+        setSelectedReader(user.id);
+      } else {
+        setSelectedReader('All');
+      }
       fetchData();
     }
   }, [user]);
@@ -183,6 +228,44 @@ export default function App() {
   const onUpdateUser = (updatedUser: User) => {
     setUser(updatedUser);
     localStorage.setItem('tarot_user', JSON.stringify(updatedUser));
+  };
+
+  const onUpdateSettings = (updatedSettings: SystemSettings) => {
+    setSettings(updatedSettings);
+  };
+
+  const handleSyncToSheets = async () => {
+    try {
+      // Gather all data for sync
+      // Note: We use the full lists from state which are already fetched in fetchData
+      const payload = {
+        users: users,
+        sales: sales.map(s => {
+          const reader = users.find(u => u.id === s.reader_id);
+          const sale = users.find(u => u.id === s.sale_id);
+          return {
+            ...s,
+            reader_name: reader?.full_name || 'N/A',
+            sale_name: sale?.full_name || 'N/A'
+          };
+        }),
+        shifts: shifts,
+        readerShifts: readerSchedule.map(r => {
+          const staff = users.find(u => u.id === r.user_id);
+          return { ...r, staff_name: staff?.full_name || 'N/A' };
+        }),
+        saleShifts: saleSchedule.map(s => {
+          const staff = users.find(u => u.id === s.user_id);
+          return { ...s, staff_name: staff?.full_name || 'N/A' };
+        })
+      };
+
+      const res = await apiService.syncAllData(payload);
+      return res;
+    } catch (err) {
+      console.error("Sync error:", err);
+      return { success: false, message: 'Lỗi đồng bộ: ' + (err instanceof Error ? err.message : String(err)) };
+    }
   };
 
   const handleSaleSubmit = async (e: React.FormEvent) => {
@@ -380,6 +463,9 @@ export default function App() {
           <SettingsView 
             user={user}
             onUpdateUser={onUpdateUser}
+            systemSettings={settings}
+            onUpdateSettings={onUpdateSettings}
+            onSyncToSheets={handleSyncToSheets}
           />
         );
       default:

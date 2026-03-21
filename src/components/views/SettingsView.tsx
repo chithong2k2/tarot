@@ -7,23 +7,42 @@ import {
   Save,
   CheckCircle2,
   AlertCircle,
-  X
+  X,
+  Database,
+  RefreshCw,
+  ExternalLink,
+  Link2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { User } from '../../types';
+import { User, SystemSettings } from '../../types';
 import { firebaseService } from '../../services/firebaseService';
+import { apiService } from '../../services/api';
 
 interface SettingsViewProps {
   user: User;
   onUpdateUser: (updatedUser: User) => void;
+  systemSettings: SystemSettings | null;
+  onUpdateSettings: (settings: SystemSettings) => void;
+  onSyncToSheets: () => Promise<{ success: boolean; message: string }>;
 }
 
-export const SettingsView: React.FC<SettingsViewProps> = ({ user, onUpdateUser }) => {
+export const SettingsView: React.FC<SettingsViewProps> = ({ 
+  user, 
+  onUpdateUser,
+  systemSettings,
+  onUpdateSettings,
+  onSyncToSheets
+}) => {
   const [formData, setFormData] = useState({
     full_name: user.full_name || '',
     username: user.username || '',
     avatar_url: user.avatar_url || ''
   });
+
+  const [gasApiUrl, setGasApiUrl] = useState(systemSettings?.gas_api_url || '');
+  const [syncLoading, setSyncLoading] = useState(false);
+  const [testLoading, setTestLoading] = useState(false);
+  const [settingsLoading, setSettingsLoading] = useState(false);
 
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [passwordData, setPasswordData] = useState({
@@ -45,6 +64,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ user, onUpdateUser }
       avatar_url: user.avatar_url || ''
     });
   }, [user.id, user.full_name, user.username, user.avatar_url]);
+
+  React.useEffect(() => {
+    if (systemSettings?.gas_api_url) {
+      setGasApiUrl(systemSettings.gas_api_url);
+    }
+  }, [systemSettings?.gas_api_url]);
 
   const compressImage = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -174,6 +199,59 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ user, onUpdateUser }
     'https://api.dicebear.com/7.x/avataaars/svg?seed=Luna',
     'https://api.dicebear.com/7.x/avataaars/svg?seed=Oliver',
   ];
+
+  const handleUpdateSettings = async () => {
+    setSettingsLoading(true);
+    try {
+      const res = await firebaseService.updateSettings({ gas_api_url: gasApiUrl });
+      if (res.success) {
+        onUpdateSettings({ ...systemSettings!, gas_api_url: gasApiUrl });
+        setMessage({ type: 'success', text: 'Cập nhật cấu hình hệ thống thành công!' });
+      } else {
+        setMessage({ type: 'error', text: 'Cập nhật cấu hình thất bại' });
+      }
+    } catch (err) {
+      setMessage({ type: 'error', text: 'Đã có lỗi xảy ra khi cập nhật cấu hình' });
+    } finally {
+      setSettingsLoading(false);
+    }
+  };
+
+  const handleTestConnection = async () => {
+    setTestLoading(true);
+    try {
+      const res = await apiService.testConnection();
+      if (res.success) {
+        setMessage({ type: 'success', text: 'Kết nối đến Google Sheets thành công!' });
+      } else {
+        setMessage({ type: 'error', text: `Kết nối thất bại: ${res.message}` });
+      }
+    } catch (err) {
+      setMessage({ type: 'error', text: 'Lỗi kết nối đến API' });
+    } finally {
+      setTestLoading(false);
+    }
+  };
+
+  const handleSync = async () => {
+    if (!window.confirm('Bạn có chắc chắn muốn đồng bộ toàn bộ dữ liệu từ Firestore sang Google Sheets? Thao tác này sẽ ghi đè dữ liệu hiện tại trên Sheets.')) {
+      return;
+    }
+
+    setSyncLoading(true);
+    try {
+      const res = await onSyncToSheets();
+      if (res.success) {
+        setMessage({ type: 'success', text: res.message });
+      } else {
+        setMessage({ type: 'error', text: res.message });
+      }
+    } catch (err) {
+      setMessage({ type: 'error', text: 'Lỗi đồng bộ dữ liệu' });
+    } finally {
+      setSyncLoading(false);
+    }
+  };
 
   return (
     <motion.div 
@@ -323,6 +401,98 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ user, onUpdateUser }
               </button>
             </div>
           </form>
+
+          {/* Manager Only: Google Sheets Integration */}
+          {user.role === 'manager' && (
+            <div className="mt-12 pt-12 border-t-2 border-dashed border-slate-100 space-y-8">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-xl font-bold text-slate-900 flex items-center space-x-2">
+                    <Database size={24} className="text-emerald-600" />
+                    <span>Tích Hợp Google Sheets</span>
+                  </h3>
+                  <p className="text-slate-500 text-sm mt-1">Đồng bộ dữ liệu sang Google Sheets để lưu trữ và báo cáo</p>
+                </div>
+                {gasApiUrl && (
+                  <a 
+                    href={gasApiUrl.split('/exec')[0]} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-emerald-600 hover:text-emerald-700 flex items-center space-x-1 text-sm font-medium"
+                  >
+                    <span>Mở Script</span>
+                    <ExternalLink size={14} />
+                  </a>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div className="lg:col-span-2 space-y-6">
+                  <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 space-y-4">
+                    <div className="flex items-center space-x-2 text-slate-700 font-bold">
+                      <Link2 size={18} className="text-emerald-600" />
+                      <span>Google Apps Script Web App URL</span>
+                    </div>
+                    <div className="flex space-x-2">
+                      <input 
+                        type="text" 
+                        value={gasApiUrl}
+                        onChange={e => setGasApiUrl(e.target.value)}
+                        className="flex-1 px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500 transition-all text-sm font-mono"
+                        placeholder="https://script.google.com/macros/s/.../exec"
+                      />
+                      <button
+                        onClick={handleUpdateSettings}
+                        disabled={settingsLoading}
+                        className="bg-emerald-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-emerald-700 transition-all disabled:opacity-50 flex items-center space-x-2"
+                      >
+                        {settingsLoading ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Save size={18} />}
+                        <span>Lưu</span>
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-slate-400 italic">
+                      Lưu ý: URL này được lưu vào cấu hình hệ thống và áp dụng cho tất cả người quản lý.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row gap-4">
+                    <button
+                      onClick={handleTestConnection}
+                      disabled={testLoading || !gasApiUrl}
+                      className="flex-1 py-4 rounded-2xl border-2 border-emerald-100 text-emerald-600 font-bold hover:bg-emerald-50 transition-all flex items-center justify-center space-x-2 disabled:opacity-50"
+                    >
+                      {testLoading ? <div className="w-5 h-5 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" /> : <RefreshCw size={20} />}
+                      <span>Kiểm Tra Kết Nối</span>
+                    </button>
+                    
+                    <button
+                      onClick={handleSync}
+                      disabled={syncLoading || !gasApiUrl}
+                      className="flex-1 py-4 rounded-2xl bg-emerald-600 text-white font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 flex items-center justify-center space-x-2 disabled:opacity-50"
+                    >
+                      {syncLoading ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <RefreshCw size={20} className={syncLoading ? 'animate-spin' : ''} />}
+                      <span>Đồng Bộ Toàn Bộ Dữ Liệu</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="bg-emerald-50 p-6 rounded-3xl border border-emerald-100 space-y-4">
+                  <h4 className="font-bold text-emerald-900 flex items-center space-x-2">
+                    <AlertCircle size={18} />
+                    <span>Hướng dẫn</span>
+                  </h4>
+                  <ul className="text-xs text-emerald-800 space-y-3 list-disc pl-4">
+                    <li>Copy mã script từ file <code className="bg-emerald-100 px-1 rounded">GAS_API_CODE.js</code></li>
+                    <li>Tạo một Google Sheet mới, vào <span className="font-bold">Extensions &gt; Apps Script</span></li>
+                    <li>Dán mã vào và <span className="font-bold">Deploy &gt; New Deployment</span></li>
+                    <li>Chọn <span className="font-bold">Web App</span>, Execute as: <span className="font-bold">Me</span>, Access: <span className="font-bold">Anyone</span></li>
+                    <li>Copy URL nhận được và dán vào ô bên cạnh</li>
+                    <li>Nhấn <span className="font-bold">Đồng bộ</span> để đẩy toàn bộ dữ liệu từ Firestore sang Sheets</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
