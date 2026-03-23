@@ -93,6 +93,16 @@ export const StaffView: React.FC<StaffViewProps> = ({
                 placeholder="Nguyễn Văn A" 
               />
             </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">Số tài khoản ngân hàng</label>
+              <input 
+                type="text" 
+                value={userForm.bank_account}
+                onChange={e => setUserForm({ ...userForm, bank_account: e.target.value })}
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-indigo-500" 
+                placeholder="0123456789" 
+              />
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">Vai trò</label>

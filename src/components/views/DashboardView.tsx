@@ -472,11 +472,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     const staffName = staff?.full_name || staffId || 'Không xác định';
                     const commissionPercent = staff?.commission_percent || 0;
 
-                    // Calculate stats for this specific reader
-                    const todayRevenue = (staffSales as SaleRecord[]).reduce((sum, s) => sum + (Number(s.amount) || 0) + (Number(s.tip) || 0), 0);
-                    const todayCommission = (todayRevenue * commissionPercent) / 100;
+                    // Calculate stats for this specific staff
+                    const todayAmount = (staffSales as SaleRecord[]).reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
+                    const todayTip = (staffSales as SaleRecord[]).reduce((sum, s) => sum + (Number(s.tip) || 0), 0);
+                    const todayRevenue = todayAmount + todayTip;
+                    
+                    // Reader gets % of amount. Sale gets % of amount only.
+                    const todayCommission = (todayAmount * commissionPercent / 100);
 
-                    // Weekly stats for this reader
+                    // Weekly stats for this staff
                     const weeklySales = sales.filter(s => {
                       const rawId = effectiveStaffType === 'reader' 
                         ? (s.reader_id || (s as any).reader_name)
@@ -487,8 +491,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       );
                       return (sStaff?.id || rawId) === staffId;
                     });
-                    const weeklyRevenue = weeklySales.reduce((sum, s) => sum + (Number(s.amount) || 0) + (Number(s.tip) || 0), 0);
-                    const weeklyCommission = (weeklyRevenue * commissionPercent) / 100;
+                    const weeklyAmount = weeklySales.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
+                    const weeklyTip = weeklySales.reduce((sum, s) => sum + (Number(s.tip) || 0), 0);
+                    const weeklyRevenue = weeklyAmount + weeklyTip;
+                    
+                    const weeklyCommission = (weeklyAmount * commissionPercent / 100);
 
                     return (
                       <React.Fragment key={staffId}>
@@ -565,13 +572,20 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                               </div>
 
                               {/* Right side: Commission Sub-container */}
-                              <div className="flex items-center justify-between gap-6 bg-emerald-50 px-6 py-4 rounded-xl border border-emerald-100/50 w-full md:w-auto min-w-[300px]">
+                              <div className="flex items-center justify-between gap-6 bg-emerald-50 px-6 py-4 rounded-xl border border-emerald-100/50 w-full md:w-auto min-w-[350px]">
                                 <div className="flex flex-col">
                                   <span className="text-[10px] font-bold text-emerald-600/70 uppercase tracking-widest mb-1">Hoa Hồng ({commissionPercent}%)</span>
                                   <span className="text-xl font-bold text-emerald-700">{formatVND(weeklyCommission)}</span>
-                                  <span className="text-[9px] text-emerald-600/50 font-medium mt-1">Hôm nay: {formatVND(todayCommission)}</span>
+                                  <span className="text-[9px] text-emerald-600/50 font-medium mt-1 text-nowrap">Hôm nay: {formatVND(todayCommission)}</span>
                                 </div>
-                                <div className="bg-emerald-100 p-3 rounded-full">
+                                {effectiveStaffType === 'reader' && (
+                                  <div className="flex flex-col border-l border-emerald-200/50 pl-6">
+                                    <span className="text-[10px] font-bold text-emerald-600/70 uppercase tracking-widest mb-1">Tiền Tip (100%)</span>
+                                    <span className="text-xl font-bold text-emerald-700">{formatVND(weeklyTip)}</span>
+                                    <span className="text-[9px] text-emerald-600/50 font-medium mt-1 text-nowrap">Hôm nay: {formatVND(todayTip)}</span>
+                                  </div>
+                                )}
+                                <div className="bg-emerald-100 p-3 rounded-full hidden sm:block">
                                   <Wallet className="text-emerald-600" size={24} />
                                 </div>
                               </div>

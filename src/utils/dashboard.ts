@@ -7,10 +7,6 @@ export const calculateDashboardSummary = (sales: SaleRecord[], users: User[], op
   let totalSaleCommission = 0;
   let totalOperatingCosts = 0;
 
-  operatingCosts.forEach(c => {
-    totalOperatingCosts += Number(c.amount) || 0;
-  });
-
   const revenueByDay: Record<string, number> = {
     'Thứ 2': 0, 'Thứ 3': 0, 'Thứ 4': 0, 'Thứ 5': 0, 'Thứ 6': 0, 'Thứ 7': 0, 'Chủ nhật': 0
   };
@@ -68,13 +64,16 @@ export const calculateDashboardSummary = (sales: SaleRecord[], users: User[], op
     }
     
     const rId = String(s.reader_id || (s as any).reader_name || '').trim();
-    const reader = userMap.get(rId) || users.find(u => u.id === rId || (u.full_name || '').toLowerCase() === rId.toLowerCase());
+    const reader = userMap.get(rId) || users.find(u => u.id === rId || u.full_name.toLowerCase() === rId.toLowerCase());
     if (reader) {
-      const commission = ((amount + tip) * (Number(reader.commission_percent) / 100));
+      // Reader commission: % of amount only. Tips go 100% to reader but are tracked separately.
+      const commission = (amount * (Number(reader.commission_percent) / 100));
       totalReaderCommission += commission;
-      readerStats[reader.full_name || rId] = (readerStats[reader.full_name || rId] || 0) + amount + tip;
+      readerStats[reader.full_name] = (readerStats[reader.full_name] || 0) + amount + tip;
+      
+      // For expenses, we count both commission and the full tip (since it's paid out)
       if (expensesByDay[dayName] !== undefined) {
-        expensesByDay[dayName] += commission;
+        expensesByDay[dayName] += commission + tip;
       }
       if (commissionByDay[dayName] !== undefined) {
         commissionByDay[dayName] += commission;
@@ -83,16 +82,17 @@ export const calculateDashboardSummary = (sales: SaleRecord[], users: User[], op
         readerCommissionByDay[dayName] += commission;
       }
     } else if (rId && rId !== 'N/A') {
-      readerStats[rId] = (readerStats[rId] || 0) + amount;
+      readerStats[rId] = (readerStats[rId] || 0) + amount + tip;
     }
 
     const sId = String(s.sale_id || (s as any).sale_name || '').trim();
     if (sId && sId !== 'none' && sId !== 'N/A') {
-      const sale = userMap.get(sId) || users.find(u => u.id === sId || (u.full_name || '').toLowerCase() === sId.toLowerCase());
+      const sale = userMap.get(sId) || users.find(u => u.id === sId || u.full_name.toLowerCase() === sId.toLowerCase());
       if (sale) {
-        const commission = ((amount + tip) * (Number(sale.commission_percent) / 100));
+        // Sale commission: % of amount only
+        const commission = (amount * (Number(sale.commission_percent) / 100));
         totalSaleCommission += commission;
-        saleStats[sale.full_name || sId] = (saleStats[sale.full_name || sId] || 0) + amount + tip;
+        saleStats[sale.full_name] = (saleStats[sale.full_name] || 0) + amount;
         if (expensesByDay[dayName] !== undefined) {
           expensesByDay[dayName] += commission;
         }
@@ -112,7 +112,8 @@ export const calculateDashboardSummary = (sales: SaleRecord[], users: User[], op
   const topSaleEntry = Object.entries(saleStats).sort((a, b) => b[1] - a[1])[0];
 
   const totalRevenue = totalAmount + totalTip;
-  const totalExpenses = totalReaderCommission + totalSaleCommission + totalOperatingCosts;
+  // Total expenses = Reader Commission + Sale Commission + All Tips + Operating Costs
+  const totalExpenses = totalReaderCommission + totalSaleCommission + totalTip + totalOperatingCosts;
   const netProfit = totalRevenue - totalExpenses;
 
   return {

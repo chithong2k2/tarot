@@ -11,7 +11,8 @@ import {
   Database,
   RefreshCw,
   ExternalLink,
-  Link2
+  Link2,
+  QrCode
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { User, SystemSettings } from '../../types';
@@ -36,10 +37,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [formData, setFormData] = useState({
     full_name: user.full_name || '',
     username: user.username || '',
-    avatar_url: user.avatar_url || ''
+    avatar_url: user.avatar_url || '',
+    bank_account: user.bank_account || ''
   });
 
   const [gasApiUrl, setGasApiUrl] = useState(systemSettings?.gas_api_url || '');
+  const [bankName, setBankName] = useState(systemSettings?.bank_name || '');
+  const [bankAccountNo, setBankAccountNo] = useState(systemSettings?.bank_account_number || '');
+  const [bankAccountName, setBankAccountName] = useState(systemSettings?.bank_account_name || '');
   const [syncLoading, setSyncLoading] = useState(false);
   const [testLoading, setTestLoading] = useState(false);
   const [settingsLoading, setSettingsLoading] = useState(false);
@@ -61,15 +66,19 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     setFormData({
       full_name: user.full_name || '',
       username: user.username || '',
-      avatar_url: user.avatar_url || ''
+      avatar_url: user.avatar_url || '',
+      bank_account: user.bank_account || ''
     });
-  }, [user.id, user.full_name, user.username, user.avatar_url]);
+  }, [user.id, user.full_name, user.username, user.avatar_url, user.bank_account]);
 
   React.useEffect(() => {
-    if (systemSettings?.gas_api_url) {
-      setGasApiUrl(systemSettings.gas_api_url);
+    if (systemSettings) {
+      setGasApiUrl(systemSettings.gas_api_url || '');
+      setBankName(systemSettings.bank_name || '');
+      setBankAccountNo(systemSettings.bank_account_number || '');
+      setBankAccountName(systemSettings.bank_account_name || '');
     }
-  }, [systemSettings?.gas_api_url]);
+  }, [systemSettings]);
 
   const compressImage = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -203,9 +212,20 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const handleUpdateSettings = async () => {
     setSettingsLoading(true);
     try {
-      const res = await firebaseService.updateSettings({ gas_api_url: gasApiUrl });
+      const res = await firebaseService.updateSettings({ 
+        gas_api_url: gasApiUrl,
+        bank_name: bankName,
+        bank_account_number: bankAccountNo,
+        bank_account_name: bankAccountName
+      });
       if (res.success) {
-        onUpdateSettings({ ...systemSettings!, gas_api_url: gasApiUrl });
+        onUpdateSettings({ 
+          ...systemSettings!, 
+          gas_api_url: gasApiUrl,
+          bank_name: bankName,
+          bank_account_number: bankAccountNo,
+          bank_account_name: bankAccountName
+        });
         setMessage({ type: 'success', text: 'Cập nhật cấu hình hệ thống thành công!' });
       } else {
         setMessage({ type: 'error', text: 'Cập nhật cấu hình thất bại' });
@@ -357,6 +377,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       placeholder="Nhập username"
                     />
                   </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">Số tài khoản ngân hàng</label>
+                    <input 
+                      type="text" 
+                      value={formData.bank_account}
+                      onChange={e => setFormData({ ...formData, bank_account: e.target.value })}
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                      placeholder="Nhập số tài khoản"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -402,10 +432,65 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </div>
           </form>
 
-          {/* Manager Only: Google Sheets Integration */}
+          {/* Manager Only: System Config & Google Sheets Integration */}
           {user.role === 'manager' && (
-            <div className="mt-12 pt-12 border-t-2 border-dashed border-slate-100 space-y-8">
-              <div className="flex items-center justify-between">
+            <div className="mt-12 pt-12 border-t-2 border-dashed border-slate-100 space-y-12">
+              {/* Bank Config */}
+              <div className="space-y-6">
+                <h3 className="text-xl font-bold text-slate-900 flex items-center space-x-2">
+                  <QrCode size={24} className="text-indigo-600" />
+                  <span>Cấu Hình Thanh Toán QR</span>
+                </h3>
+                <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">Ngân hàng</label>
+                    <select 
+                      value={bankName}
+                      onChange={e => setBankName(e.target.value)}
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                    >
+                      <option value="MBBank">MBBank</option>
+                      <option value="Vietcombank">Vietcombank</option>
+                      <option value="Techcombank">Techcombank</option>
+                      <option value="ACB">ACB</option>
+                      <option value="TPBank">TPBank</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">Số tài khoản</label>
+                    <input 
+                      type="text" 
+                      value={bankAccountNo}
+                      onChange={e => setBankAccountNo(e.target.value)}
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                      placeholder="0123456789"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">Tên chủ tài khoản</label>
+                    <input 
+                      type="text" 
+                      value={bankAccountName}
+                      onChange={e => setBankAccountName(e.target.value)}
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                      placeholder="NGUYEN VAN A"
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end">
+                  <button
+                    onClick={handleUpdateSettings}
+                    disabled={settingsLoading}
+                    className="bg-indigo-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-indigo-700 transition-all disabled:opacity-50 flex items-center space-x-2"
+                  >
+                    {settingsLoading ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Save size={18} />}
+                    <span>Lưu Cấu Hình QR</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Google Sheets Integration */}
+              <div className="space-y-8">
                 <div>
                   <h3 className="text-xl font-bold text-slate-900 flex items-center space-x-2">
                     <Database size={24} className="text-emerald-600" />
@@ -472,6 +557,40 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     >
                       {syncLoading ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <RefreshCw size={20} className={syncLoading ? 'animate-spin' : ''} />}
                       <span>Đồng Bộ Toàn Bộ Dữ Liệu</span>
+                    </button>
+                  </div>
+
+                  {/* Data Migration Section */}
+                  <div className="bg-amber-50 p-6 rounded-3xl border border-amber-100 space-y-4">
+                    <div className="flex items-center space-x-2 text-amber-900 font-bold">
+                      <Database size={18} className="text-amber-600" />
+                      <span>Bảo Trì Dữ Liệu</span>
+                    </div>
+                    <p className="text-xs text-amber-800">
+                      Bổ sung trường thời gian (`created_at`) cho các bản ghi cũ chưa có thông tin này. Việc này giúp việc sắp xếp dữ liệu chính xác hơn.
+                    </p>
+                    <button
+                      onClick={async () => {
+                        if (!window.confirm('Bạn có chắc chắn muốn thực hiện di chuyển dữ liệu?')) return;
+                        setLoading(true);
+                        try {
+                          const res = await firebaseService.migrateData();
+                          if (res.success) {
+                            alert(res.message);
+                          } else {
+                            alert('Lỗi: ' + res.message);
+                          }
+                        } catch (err) {
+                          alert('Đã có lỗi xảy ra');
+                        } finally {
+                          setLoading(false);
+                        }
+                      }}
+                      disabled={loading}
+                      className="w-full py-3 rounded-xl bg-amber-600 text-white font-bold hover:bg-amber-700 transition-all shadow-lg shadow-amber-100 flex items-center justify-center space-x-2 disabled:opacity-50"
+                    >
+                      <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
+                      <span>Bổ Sung Thời Gian Cho Dữ Liệu Cũ</span>
                     </button>
                   </div>
                 </div>

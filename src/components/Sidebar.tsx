@@ -116,10 +116,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 onClick={() => { setView('costs'); setIsSidebarOpen(false); }} 
               />
               <SidebarItem 
-                icon={<CreditCard size={20} />} 
-                label="Lịch Sử Ngân Hàng" 
-                active={view === 'bank_history'} 
-                onClick={() => { setView('bank_history'); setIsSidebarOpen(false); }} 
+                icon={<TrendingUp size={20} />} 
+                label="Lịch Sử Giao Dịch" 
+                active={view === 'sales_history'} 
+                onClick={() => { setView('sales_history'); setIsSidebarOpen(false); }} 
               />
             </>
           )}

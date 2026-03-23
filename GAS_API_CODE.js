@@ -526,15 +526,17 @@ function getDashboardSummary(ss) {
     
     // Commissions
     if (userMap[readerName]) {
-      const comm = (amount + tip) * (userMap[readerName].commission / 100);
+      // Reader gets % of amount + 100% of tip
+      const comm = (amount * (userMap[readerName].commission / 100));
       totalReaderCommission += comm;
       readerStats[readerName] = (readerStats[readerName] || 0) + amount + tip;
     }
     
     if (userMap[saleName]) {
-      const comm = (amount + tip) * (userMap[saleName].commission / 100);
+      // Sale gets % of amount only
+      const comm = (amount * (userMap[saleName].commission / 100));
       totalSaleCommission += comm;
-      saleStats[saleName] = (saleStats[saleName] || 0) + amount + tip;
+      saleStats[saleName] = (saleStats[saleName] || 0) + amount;
     }
   });
 
@@ -549,6 +551,7 @@ function getDashboardSummary(ss) {
       totalTip,
       totalReaderCommission,
       totalSaleCommission,
+      totalExpenses: totalReaderCommission + totalSaleCommission + totalTip, // Assuming 0 operating costs for simple GAS summary
       revenueByDay: Object.entries(revenueByDay).map(([name, value]) => ({ name, value })),
       topReader: { name: topReader[0], amount: topReader[1] },
       topSale: { name: topSale[0], amount: topSale[1] }

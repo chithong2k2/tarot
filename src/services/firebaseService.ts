@@ -43,7 +43,7 @@ export const firebaseService = {
         settingsSnap
       ] = await Promise.all([
         getDocs(collection(db, 'users')),
-        getDocs(query(collection(db, 'sales'), orderBy('date', 'desc'))),
+        getDocs(query(collection(db, 'sales'), orderBy('created_at', 'desc'))),
         getDocs(query(collection(db, 'shifts'), orderBy('start_time'))),
         getDocs(collection(db, 'reader_shifts')),
         getDocs(collection(db, 'sale_shifts')),
@@ -114,7 +114,10 @@ export const firebaseService = {
   },
 
   addUser: async (userData: Partial<User>): Promise<FirebaseResponse> => {
-    const docRef = await addDoc(collection(db, 'users'), userData);
+    const docRef = await addDoc(collection(db, 'users'), {
+      ...userData,
+      created_at: new Date().toISOString()
+    });
     return { success: true, id: docRef.id };
   },
 
@@ -169,7 +172,10 @@ export const firebaseService = {
 
   // --- Sale Records ---
   addSaleRecord: async (record: Partial<SaleRecord>): Promise<FirebaseResponse> => {
-    const docRef = await addDoc(collection(db, 'sales'), record);
+    const docRef = await addDoc(collection(db, 'sales'), {
+      ...record,
+      created_at: new Date().toISOString()
+    });
     return { success: true, id: docRef.id };
   },
 
@@ -432,6 +438,56 @@ export const firebaseService = {
       return { success: true };
     } catch (error) {
       console.error("[FirebaseService] seedDatabase error:", error);
+      return { success: false, message: error instanceof Error ? error.message : String(error) };
+    }
+  },
+
+  // --- Data Migration ---
+  migrateData: async (): Promise<FirebaseResponse> => {
+    try {
+      const batch = writeBatch(db);
+      let count = 0;
+
+      // 1. Migrate Sales
+      const salesSnap = await getDocs(collection(db, 'sales'));
+      salesSnap.forEach(d => {
+        const data = d.data();
+        if (!data.created_at) {
+          // Use the 'date' field as a fallback for created_at
+          const fallbackDate = data.date ? new Date(data.date).toISOString() : new Date().toISOString();
+          batch.update(d.ref, { created_at: fallbackDate });
+          count++;
+        }
+      });
+
+      // 2. Migrate Operating Costs
+      const costsSnap = await getDocs(collection(db, 'operating_costs'));
+      costsSnap.forEach(d => {
+        const data = d.data();
+        if (!data.created_at) {
+          const fallbackDate = data.date ? new Date(data.date).toISOString() : new Date().toISOString();
+          batch.update(d.ref, { created_at: fallbackDate });
+          count++;
+        }
+      });
+
+      // 3. Migrate Users
+      const usersSnap = await getDocs(collection(db, 'users'));
+      usersSnap.forEach(d => {
+        const data = d.data();
+        if (!data.created_at) {
+          batch.update(d.ref, { created_at: new Date().toISOString() });
+          count++;
+        }
+      });
+
+      if (count > 0) {
+        await batch.commit();
+      }
+      
+      return { success: true, message: `Đã cập nhật ${count} bản ghi.` };
+    } catch (error) {
+      console.error("[FirebaseService] Migration error:", error);
       return { success: false, message: error instanceof Error ? error.message : String(error) };
     }
   },

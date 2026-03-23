@@ -78,15 +78,7 @@ export interface SystemSettings {
   id: string;
   is_locked: boolean;
   gas_api_url?: string;
-}
-
-export interface BankTransaction {
-  id: string;
-  transaction_date: string;
-  amount: number;
-  description: string;
-  type: 'IN' | 'OUT';
-  account_number?: string;
-  reference_number: string;
-  created_at?: string;
+  bank_name?: string;
+  bank_account_number?: string;
+  bank_account_name?: string;
 }
