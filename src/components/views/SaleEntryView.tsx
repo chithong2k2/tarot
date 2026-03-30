@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { Trash2, QrCode, X } from 'lucide-react';
+import { Trash2, QrCode, X, Zap, Check } from 'lucide-react';
 import { User, SaleRecord, SystemSettings } from '../../types';
 import { formatVND } from '../DashboardComponents';
 import { firebaseService } from '../../services/firebaseService';
@@ -34,6 +34,8 @@ export const SaleEntryView: React.FC<SaleEntryViewProps> = ({
 }) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false);
   const [showQR, setShowQR] = React.useState(false);
+  const [quickInput, setQuickInput] = useState('');
+  const [parseSuccess, setParseSuccess] = useState(false);
 
   const generateVietQR = () => {
     if (!systemSettings?.bank_account_number) return '';
@@ -47,8 +49,111 @@ export const SaleEntryView: React.FC<SaleEntryViewProps> = ({
     return `https://img.vietqr.io/image/${bankId}-${accountNo}-compact2.png?amount=${amount}&addInfo=${encodeURIComponent(description)}&accountName=${encodeURIComponent(accountName)}`;
   };
 
-  console.log("[SaleEntryView] Current users:", users);
-  console.log("[SaleEntryView] Current saleForm:", saleForm);
+  const handleQuickParse = () => {
+    if (!quickInput.trim()) return;
+
+    const lines = quickInput.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    
+    let customerName = '';
+    let amount = 0;
+    let readerId = '';
+    let saleId = '';
+    let foundPrice = false;
+
+    const readers = users.filter(u => u.role === 'reader');
+    const sales = users.filter(u => u.role === 'sale');
+
+    // Helper to find user by name or username
+    const findUser = (text: string, pool: User[]) => {
+      const lowerText = text.toLowerCase();
+      return pool.find(u => 
+        lowerText.includes(u.full_name.toLowerCase()) || 
+        lowerText.includes(u.username.toLowerCase()) ||
+        u.full_name.toLowerCase().includes(lowerText) ||
+        u.username.toLowerCase().includes(lowerText)
+      );
+    };
+
+    lines.forEach(line => {
+      const amountMatch = line.match(/(\d+)(k|000)/i);
+      
+      // If line has a price, it's likely the Sale's announcement
+      if (amountMatch && !foundPrice) {
+        const amountStr = amountMatch[1];
+        amount = parseInt(amountStr) * (amountMatch[2].toLowerCase() === 'k' ? 1000 : 1);
+        foundPrice = true;
+
+        // Try to extract Sale name from the beginning of the line (e.g., "Thông: ...")
+        const colonIndex = line.indexOf(':');
+        if (colonIndex > 0) {
+          const potentialSaleName = line.substring(0, colonIndex).trim();
+          const foundSale = findUser(potentialSaleName, sales);
+          if (foundSale) saleId = foundSale.id;
+        }
+
+        // Extract customer name: everything before the amount (excluding the prefix)
+        const amountIndex = line.indexOf(amountMatch[0]);
+        const startOfContent = colonIndex > -1 ? colonIndex + 1 : 0;
+        customerName = line.substring(startOfContent, amountIndex).trim().replace(/^[-:\s]+|[-:\s]+$/g, '');
+      }
+
+      // If line contains "nhận" or "ok", it's likely the Reader's response
+      if (line.toLowerCase().includes('nhận') || line.toLowerCase().includes('ok')) {
+        const colonIndex = line.indexOf(':');
+        if (colonIndex > 0) {
+          const potentialReaderName = line.substring(0, colonIndex).trim();
+          const foundReader = findUser(potentialReaderName, readers);
+          if (foundReader) readerId = foundReader.id;
+        }
+      }
+    });
+
+    // Fallback for single line input (original logic)
+    if (lines.length === 1 && !saleId && !readerId) {
+      const line = lines[0];
+      const amountMatch = line.match(/(\d+)(k|000)/i);
+      if (amountMatch) {
+        const amountStr = amountMatch[1];
+        const parsedAmount = parseInt(amountStr) * (amountMatch[2].toLowerCase() === 'k' ? 1000 : 1);
+        const amountIndex = line.indexOf(amountMatch[0]);
+        customerName = line.substring(0, amountIndex).trim();
+        const remaining = line.substring(amountIndex + amountMatch[0].length).trim();
+        const parts = remaining.split(/[\s,/-]+/).filter(p => p.length > 0);
+        
+        parts.forEach(part => {
+          const r = findUser(part, readers);
+          if (r) readerId = r.id;
+          const s = findUser(part, sales);
+          if (s) saleId = s.id;
+        });
+        amount = parsedAmount;
+      }
+    }
+
+    // Package mapping
+    let packageName = '';
+    if (amount === 35000) packageName = '1 câu';
+    else if (amount === 70000 || amount === 80000) packageName = '3 câu';
+    else if (amount === 100000) packageName = '5 câu';
+    else if (amount === 129000) packageName = '7 câu';
+    else if (amount === 169000) packageName = '10 câu';
+    else if (amount === 160000) packageName = 'gói 30p 1 chủ đề';
+    else if (amount === 180000) packageName = 'gói 30p nhiều chủ đề';
+    else packageName = amount > 0 ? `${amount/1000}k` : '';
+
+    setSaleForm({
+      ...saleForm,
+      customer_name: customerName || saleForm.customer_name,
+      amount: amount || saleForm.amount,
+      package_name: packageName || saleForm.package_name,
+      reader_id: readerId || saleForm.reader_id,
+      sale_id: saleId || saleForm.sale_id,
+      date: new Date().toISOString().split('T')[0]
+    });
+
+    setParseSuccess(true);
+    setTimeout(() => setParseSuccess(false), 2000);
+  };
 
   return (
     <motion.div 
@@ -63,6 +168,42 @@ export const SaleEntryView: React.FC<SaleEntryViewProps> = ({
           <h2 className="text-2xl font-bold">{editingSale ? 'Chỉnh Sửa Giao Dịch' : 'Nhập Dữ Liệu Khách Hàng'}</h2>
           <p className="text-indigo-100 mt-1">{editingSale ? 'Cập nhật thông tin giao dịch đã chọn' : 'Ghi nhận doanh thu mới cho hệ thống'}</p>
         </div>
+
+        {!editingSale && (
+          <div className="p-8 pb-0">
+            <div className="bg-indigo-50 p-6 rounded-2xl border border-indigo-100 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2 text-indigo-900 font-bold">
+                  <Zap size={18} className="text-indigo-600" />
+                  <span>Nhập Nhanh (Quick Entry)</span>
+                </div>
+                <span className="text-[10px] bg-indigo-200 text-indigo-700 px-2 py-1 rounded-full font-bold uppercase tracking-wider">Tối ưu</span>
+              </div>
+              <div className="relative">
+                <input 
+                  type="text"
+                  value={quickInput}
+                  onChange={e => setQuickInput(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleQuickParse())}
+                  placeholder="Ví dụ: Thanh Tiến 169k giang, thông"
+                  className="w-full pl-4 pr-24 py-3 rounded-xl border border-indigo-200 outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-sm"
+                />
+                <button 
+                  type="button"
+                  onClick={handleQuickParse}
+                  className={`absolute right-2 top-1/2 -translate-y-1/2 px-4 py-1.5 rounded-lg font-bold text-xs transition-all flex items-center space-x-1 ${parseSuccess ? 'bg-emerald-500 text-white' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
+                >
+                  {parseSuccess ? <Check size={14} /> : null}
+                  <span>{parseSuccess ? 'Xong' : 'Phân Tích'}</span>
+                </button>
+              </div>
+              <p className="text-[10px] text-indigo-400 italic">
+                Cấu trúc: [Tên khách] [Số tiền k] [Tên Reader] [Tên Sale]
+              </p>
+            </div>
+          </div>
+        )}
+
         <form onSubmit={handleSaleSubmit} className="p-8 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
