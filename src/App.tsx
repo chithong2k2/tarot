@@ -150,7 +150,18 @@ export default function App() {
       }
     } catch (err) {
       console.error('❌ Fetch error:', err);
-      setError('Lỗi kết nối Firebase.');
+      let message = 'Lỗi kết nối Firebase.';
+      if (err instanceof Error) {
+        try {
+          const parsed = JSON.parse(err.message);
+          if (parsed.error && parsed.operationType) {
+            message = `Lỗi Database (${parsed.operationType}): ${parsed.error}`;
+          }
+        } catch (e) {
+          message = err.message;
+        }
+      }
+      setError(message);
     } finally {
       setLoading(false);
     }
