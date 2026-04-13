@@ -11,7 +11,8 @@ import {
   Edit2,
   Trash2,
   FileDown,
-  ChevronDown
+  ChevronDown,
+  Facebook
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { 
@@ -26,7 +27,7 @@ import {
   ResponsiveContainer,
   Cell
 } from 'recharts';
-import { User, SaleRecord, DashboardSummary } from '../../types';
+import { User, SaleRecord, DashboardSummary, AdHistoryRecord } from '../../types';
 import { firebaseService } from '../../services/firebaseService';
 import { StatCard, formatVND } from '../DashboardComponents';
 import { exportToExcel } from '../../utils/export';
@@ -36,6 +37,7 @@ import { ConfirmModal } from '../ConfirmModal';
 interface DashboardViewProps {
   user: User;
   summary: DashboardSummary | null;
+  adHistory: AdHistoryRecord[];
   fetchData: () => void;
   sales: SaleRecord[];
   users: User[];
@@ -50,6 +52,7 @@ interface DashboardViewProps {
 export const DashboardView: React.FC<DashboardViewProps> = ({
   user,
   summary,
+  adHistory,
   fetchData,
   sales,
   users,
@@ -174,16 +177,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         {user.role === 'manager' && (
           <>
             <StatCard 
-              title="Chi Phí Vận Hành" 
-              value={formatVND(summary?.totalOperatingCosts || 0)} 
-              icon={<Receipt size={24} />} 
-              color="bg-orange-600"
-            />
-            <StatCard 
               title="Tổng Hoa Hồng" 
               value={formatVND((summary?.totalReaderCommission || 0) + (summary?.totalSaleCommission || 0))} 
               icon={<Wallet size={24} />} 
               color="bg-purple-600"
+            />
+            <StatCard 
+              title="Chi Phí Ads" 
+              value={formatVND(summary?.totalAdSpend || 0)} 
+              icon={<Facebook size={24} />} 
+              color="bg-blue-600"
             />
             <StatCard 
               title="Lợi Nhuận Ròng" 
@@ -210,7 +213,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <h3 className="text-lg font-bold text-slate-900">
               {user.role === 'manager' ? 'Biểu Đồ Doanh Thu & Lợi Nhuận' : 'Biểu Đồ Doanh Thu & Hoa Hồng'}
             </h3>
-            <div className="flex items-center gap-4 text-xs font-bold">
+            <div className="flex flex-wrap items-center gap-4 text-xs font-bold">
               <div className="flex items-center gap-1.5">
                 <div className="w-3 h-3 bg-indigo-600/60 rounded-sm"></div>
                 <span className="text-slate-500">Doanh thu</span>
@@ -221,19 +224,23 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   {user.role === 'manager' ? 'Lợi nhuận' : 'Hoa hồng'}
                 </span>
               </div>
+              {user.role === 'manager' && (
+                <>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-3 h-3 bg-rose-500 rounded-full"></div>
+                    <span className="text-slate-500">Chi phí Ads</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
+                    <span className="text-slate-500">Hoa hồng</span>
+                  </div>
+                </>
+              )}
             </div>
           </div>
-          <div className="h-[300px] w-full">
+          <div className="h-[350px] w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={(summary?.revenueByDay || []).map((item, index) => ({
-                name: item.name,
-                revenue: item.value,
-                secondary: user.role === 'manager' 
-                  ? (summary?.profitByDay[index]?.value || 0)
-                  : user.role === 'reader'
-                    ? (summary?.readerCommissionByDay[index]?.value || 0)
-                    : (summary?.saleCommissionByDay[index]?.value || 0)
-              }))}>
+              <ComposedChart data={summary?.dailyStats || []}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                 <XAxis 
                   dataKey="name" 
@@ -246,18 +253,23 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   axisLine={false} 
                   tickLine={false} 
                   tick={{ fill: '#64748b', fontSize: 12 }}
-                  tickFormatter={(value) => `${value / 1000000}M`}
+                  tickFormatter={(value) => `${value / 1000}k`}
                 />
                 <Tooltip 
                   cursor={{ fill: '#f8fafc' }}
                   contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                  formatter={(value: number, name: string) => [
-                    formatVND(value), 
-                    name === 'revenue' ? 'Doanh thu' : (user.role === 'manager' ? 'Lợi nhuận' : 'Hoa hồng')
-                  ]}
+                  formatter={(value: number, name: string) => {
+                    const labels: Record<string, string> = {
+                      revenue: 'Doanh thu',
+                      profit: 'Lợi nhuận',
+                      adSpend: 'Chi phí Ads',
+                      commission: 'Hoa hồng'
+                    };
+                    return [formatVND(value), labels[name] || name];
+                  }}
                 />
                 <Bar dataKey="revenue" radius={[6, 6, 0, 0]}>
-                  {(summary?.revenueByDay || []).map((entry, index) => {
+                  {(summary?.dailyStats || []).map((entry, index) => {
                     const days = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
                     const todayName = days[new Date().getDay()];
                     const isToday = entry.name === todayName;
@@ -273,12 +285,31 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 </Bar>
                 <Line 
                   type="monotone" 
-                  dataKey="secondary" 
+                  dataKey={user.role === 'manager' ? 'profit' : 'commission'} 
                   stroke="#10b981" 
                   strokeWidth={3} 
                   dot={{ r: 4, fill: '#10b981', strokeWidth: 2, stroke: '#fff' }}
                   activeDot={{ r: 6, strokeWidth: 0 }}
                 />
+                {user.role === 'manager' && (
+                  <>
+                    <Line 
+                      type="monotone" 
+                      dataKey="adSpend" 
+                      stroke="#f43f5e" 
+                      strokeWidth={2} 
+                      strokeDasharray="5 5"
+                      dot={{ r: 3, fill: '#f43f5e' }}
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="commission" 
+                      stroke="#8b5cf6" 
+                      strokeWidth={2} 
+                      dot={{ r: 3, fill: '#8b5cf6' }}
+                    />
+                  </>
+                )}
               </ComposedChart>
             </ResponsiveContainer>
           </div>

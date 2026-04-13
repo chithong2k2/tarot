@@ -1,11 +1,17 @@
-import { SaleRecord, User, DashboardSummary, OperatingCost } from '../types';
+import { SaleRecord, User, DashboardSummary, OperatingCost, AdHistoryRecord } from '../types';
 
-export const calculateDashboardSummary = (sales: SaleRecord[], users: User[], operatingCosts: OperatingCost[] = []): DashboardSummary => {
+export const calculateDashboardSummary = (
+  sales: SaleRecord[], 
+  users: User[], 
+  operatingCosts: OperatingCost[] = [],
+  adHistory: AdHistoryRecord[] = []
+): DashboardSummary => {
   let totalAmount = 0;
   let totalTip = 0;
   let totalReaderCommission = 0;
   let totalSaleCommission = 0;
   let totalOperatingCosts = 0;
+  let totalAdSpend = 0;
 
   const revenueByDay: Record<string, number> = {
     'Thứ 2': 0, 'Thứ 3': 0, 'Thứ 4': 0, 'Thứ 5': 0, 'Thứ 6': 0, 'Thứ 7': 0, 'Chủ nhật': 0
@@ -14,6 +20,9 @@ export const calculateDashboardSummary = (sales: SaleRecord[], users: User[], op
     'Thứ 2': 0, 'Thứ 3': 0, 'Thứ 4': 0, 'Thứ 5': 0, 'Thứ 6': 0, 'Thứ 7': 0, 'Chủ nhật': 0
   };
   const commissionByDay: Record<string, number> = {
+    'Thứ 2': 0, 'Thứ 3': 0, 'Thứ 4': 0, 'Thứ 5': 0, 'Thứ 6': 0, 'Thứ 7': 0, 'Chủ nhật': 0
+  };
+  const adSpendByDay: Record<string, number> = {
     'Thứ 2': 0, 'Thứ 3': 0, 'Thứ 4': 0, 'Thứ 5': 0, 'Thứ 6': 0, 'Thứ 7': 0, 'Chủ nhật': 0
   };
   const readerCommissionByDay: Record<string, number> = {
@@ -49,6 +58,32 @@ export const calculateDashboardSummary = (sales: SaleRecord[], users: User[], op
     const dayName = getDayNameFromDate(c.date);
     if (expensesByDay[dayName] !== undefined) {
       expensesByDay[dayName] += amount;
+    }
+  });
+
+  const getStartOfWeek = () => {
+    const now = new Date();
+    const day = now.getDay(); // 0 is Sunday, 1 is Monday...
+    const diff = now.getDate() - day + (day === 0 ? -6 : 1); // Adjust to Monday
+    const start = new Date(now.setDate(diff));
+    start.setHours(0, 0, 0, 0);
+    return start;
+  };
+
+  const startOfWeek = getStartOfWeek();
+
+  adHistory.forEach(h => {
+    const recordDate = new Date(h.date);
+    if (recordDate < startOfWeek) return;
+
+    const amount = Number(h.spend) || 0;
+    totalAdSpend += amount;
+    const dayName = getDayNameFromDate(h.date);
+    if (expensesByDay[dayName] !== undefined) {
+      expensesByDay[dayName] += amount;
+    }
+    if (adSpendByDay[dayName] !== undefined) {
+      adSpendByDay[dayName] += amount;
     }
   });
 
@@ -112,8 +147,8 @@ export const calculateDashboardSummary = (sales: SaleRecord[], users: User[], op
   const topSaleEntry = Object.entries(saleStats).sort((a, b) => b[1] - a[1])[0];
 
   const totalRevenue = totalAmount + totalTip;
-  // Total expenses = Reader Commission + Sale Commission + All Tips + Operating Costs
-  const totalExpenses = totalReaderCommission + totalSaleCommission + totalTip + totalOperatingCosts;
+  // Total expenses = Reader Commission + Sale Commission + All Tips + Operating Costs + Ad Spend
+  const totalExpenses = totalReaderCommission + totalSaleCommission + totalTip + totalOperatingCosts + totalAdSpend;
   const netProfit = totalRevenue - totalExpenses;
 
   return {
@@ -124,6 +159,7 @@ export const calculateDashboardSummary = (sales: SaleRecord[], users: User[], op
     totalSaleCommission,
     totalExpenses,
     totalOperatingCosts,
+    totalAdSpend,
     netProfit,
     revenueByDay: Object.entries(revenueByDay).map(([name, value]) => ({ name, value })),
     profitByDay: Object.entries(revenueByDay).map(([name, value]) => ({ 
@@ -134,7 +170,14 @@ export const calculateDashboardSummary = (sales: SaleRecord[], users: User[], op
     readerCommissionByDay: Object.entries(readerCommissionByDay).map(([name, value]) => ({ name, value })),
     saleCommissionByDay: Object.entries(saleCommissionByDay).map(([name, value]) => ({ name, value })),
     topReader: { name: topReaderEntry ? topReaderEntry[0] : 'Chưa có', amount: topReaderEntry ? topReaderEntry[1] : 0 },
-    topSale: { name: topSaleEntry ? topSaleEntry[0] : 'Chưa có', amount: topSaleEntry ? topSaleEntry[1] : 0 }
+    topSale: { name: topSaleEntry ? topSaleEntry[0] : 'Chưa có', amount: topSaleEntry ? topSaleEntry[1] : 0 },
+    dailyStats: ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ nhật'].map(day => ({
+      name: day,
+      revenue: revenueByDay[day] || 0,
+      profit: (revenueByDay[day] || 0) - (expensesByDay[day] || 0),
+      adSpend: adSpendByDay[day] || 0,
+      commission: commissionByDay[day] || 0
+    }))
   };
 };
 
@@ -146,6 +189,7 @@ export const INITIAL_SUMMARY: DashboardSummary = {
   totalSaleCommission: 0,
   totalExpenses: 0,
   totalOperatingCosts: 0,
+  totalAdSpend: 0,
   netProfit: 0,
   revenueByDay: [],
   profitByDay: [],
@@ -153,5 +197,6 @@ export const INITIAL_SUMMARY: DashboardSummary = {
   readerCommissionByDay: [],
   saleCommissionByDay: [],
   topReader: { name: 'N/A', amount: 0 },
-  topSale: { name: 'N/A', amount: 0 }
+  topSale: { name: 'N/A', amount: 0 },
+  dailyStats: []
 };

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { AnimatePresence } from 'motion/react';
-import { User, SaleRecord, DashboardSummary, Shift, ShiftRegistration, OperatingCost, SystemSettings } from './types';
+import { User, SaleRecord, DashboardSummary, Shift, ShiftRegistration, OperatingCost, SystemSettings, AdHistoryRecord } from './types';
 import { firebaseService } from './services/firebaseService';
+import { onSnapshot, collection, query, orderBy, doc } from 'firebase/firestore';
 import { db } from './lib/firebase';
 import { Sidebar } from './components/Sidebar';
 import { DashboardView } from './components/views/DashboardView';
@@ -11,6 +12,7 @@ import { ShiftView } from './components/views/ShiftView';
 import { CostsView } from './components/views/CostsView';
 import { SettingsView } from './components/views/SettingsView';
 import { SalesHistoryView } from './components/views/SalesHistoryView';
+import { AdProfitView } from './components/views/AdProfitView';
 import { LoginView } from './components/views/LoginView';
 import { calculateDashboardSummary, INITIAL_SUMMARY } from './utils/dashboard';
 import { apiService } from './services/api';
@@ -18,14 +20,16 @@ import { Menu, X } from 'lucide-react';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
-  const [view, setView] = useState<'dashboard' | 'staff' | 'staff_form' | 'entry' | 'shifts' | 'register_shift' | 'costs' | 'settings' | 'sales_history'>('dashboard');
+  const [view, setView] = useState<'dashboard' | 'staff' | 'staff_form' | 'entry' | 'shifts' | 'register_shift' | 'settings' | 'sales_history' | 'ad_profit'>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [users, setUsers] = useState<User[]>([]);
+  const [rawSales, setRawSales] = useState<SaleRecord[]>([]);
   const [sales, setSales] = useState<SaleRecord[]>([]);
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [costs, setCosts] = useState<OperatingCost[]>([]);
+  const [adHistory, setAdHistory] = useState<AdHistoryRecord[]>([]);
   const [readerSchedule, setReaderSchedule] = useState<ShiftRegistration[]>([]);
   const [saleSchedule, setSaleSchedule] = useState<ShiftRegistration[]>([]);
   const [settings, setSettings] = useState<SystemSettings>({ id: 'global', is_locked: false });
@@ -57,103 +61,125 @@ export default function App() {
     }
   }, [loading]);
 
-  const fetchData = async () => {
-    if (!db) {
-      setLoading(false);
-      setError('Firebase chưa được cấu hình.');
-      return;
-    }
+  // Real-time listeners
+  useEffect(() => {
+    if (!db || !user) return;
 
-    try {
-      setLoading(true);
-      setError(null);
-      const res = await firebaseService.getInitialData();
+    console.log("[App] Setting up real-time listeners...");
+
+    const unsubscribers: (() => void)[] = [];
+
+    // 1. Users listener
+    const unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
+      const updatedUsers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as User));
+      setUsers(updatedUsers);
       
-      if (res && res.status === 'ok' && res.data) {
-        const { users, sales, shifts, readerShifts, saleShifts, costs, settings } = res.data;
-
-        const safeUsers = Array.isArray(users) ? users : [];
-        const safeSales = Array.isArray(sales) ? sales : [];
-        const safeShifts = Array.isArray(shifts) ? shifts : [];
-        const safeCosts = Array.isArray(costs) ? costs : [];
-        const safeReaderShifts = (Array.isArray(readerShifts) ? readerShifts : []).map((r: any, i: number) => ({ ...r, id: r.id || `r-${i}` }));
-        const safeSaleShifts = (Array.isArray(saleShifts) ? saleShifts : []).map((s: any, i: number) => ({ ...s, id: s.id || `s-${i}` }));
-        const safeSettings = settings || { id: 'global', is_locked: false };
-
-        console.log("[App] Fetched Users:", safeUsers);
-        console.log("[App] Fetched Sales:", safeSales);
-
-        // 1. Sync current user data first to have latest info for filtering
-        let activeUser = user;
-        if (user) {
-          const currentUserData = safeUsers.find(u => u.id === user.id);
-          if (currentUserData) {
-            activeUser = { ...user, ...currentUserData };
-            // Only update state if something actually changed to avoid loops
-            if (JSON.stringify(activeUser) !== JSON.stringify(user)) {
-              setUser(activeUser);
-              localStorage.setItem('tarot_user', JSON.stringify(activeUser));
-            }
-          }
+      // Sync current user
+      const currentUserData = updatedUsers.find(u => u.id === user.id);
+      if (currentUserData) {
+        const activeUser = { ...user, ...currentUserData };
+        if (JSON.stringify(activeUser) !== JSON.stringify(user)) {
+          setUser(activeUser);
+          localStorage.setItem('tarot_user', JSON.stringify(activeUser));
         }
-
-        // 2. Enrich sales with names for better filtering and display
-        const enrichedSales = safeSales.map(s => {
-          const reader = safeUsers.find(u => u.id === s.reader_id || u.full_name === s.reader_id);
-          const sale = safeUsers.find(u => u.id === s.sale_id || u.full_name === s.sale_id);
-          return {
-            ...s,
-            reader_name: reader?.full_name || s.reader_id || 'N/A',
-            sale_name: sale?.full_name || s.sale_id || 'N/A'
-          };
-        });
-
-        // 3. Filter sales based on permissions using the active user
-        let filteredSales = enrichedSales;
-        if (activeUser && (activeUser.role === 'reader' || activeUser.role === 'sale')) {
-          const userId = activeUser.id.trim().toLowerCase();
-          const userFullName = activeUser.full_name.trim().toLowerCase();
-          
-          console.log(`[App] Filtering sales for ${activeUser.role}: ${activeUser.full_name} (${activeUser.id})`);
-          
-          filteredSales = enrichedSales.filter(s => {
-            const readerId = String(s.reader_id || '').trim().toLowerCase();
-            const saleId = String(s.sale_id || '').trim().toLowerCase();
-            const readerName = String(s.reader_name || '').trim().toLowerCase();
-            const saleName = String(s.sale_name || '').trim().toLowerCase();
-            
-            let match = false;
-            if (activeUser.role === 'reader') {
-              match = readerId === userId || readerName === userFullName;
-            } else {
-              match = saleId === userId || saleName === userFullName;
-            }
-            return match;
-          });
-          
-          console.log(`[App] Filtered sales count: ${filteredSales.length} out of ${enrichedSales.length}`);
-        }
-
-        setUsers(safeUsers);
-        setSales(filteredSales);
-        setShifts(safeShifts);
-        setCosts(safeCosts);
-        setReaderSchedule(safeReaderShifts);
-        setSaleSchedule(safeSaleShifts);
-        setSettings(safeSettings);
-        
-        const newSummary = calculateDashboardSummary(filteredSales, safeUsers, safeCosts);
-        setSummary(newSummary);
-      } else {
-        setError(res.message || "Không thể bóc tách dữ liệu từ Firebase.");
-        setSummary(INITIAL_SUMMARY);
       }
-    } catch (err) {
-      console.error('❌ Fetch error:', err);
-      setError('Lỗi kết nối Firebase.');
-    } finally {
-      setLoading(false);
+    });
+    unsubscribers.push(unsubUsers);
+
+    // 2. Sales listener
+    const unsubSales = onSnapshot(query(collection(db, 'sales'), orderBy('created_at', 'desc')), (snapshot) => {
+      const raw = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SaleRecord));
+      setRawSales(raw);
+    });
+    unsubscribers.push(unsubSales);
+
+    // 3. Shifts listener
+    const unsubShifts = onSnapshot(query(collection(db, 'shifts'), orderBy('start_time')), (snapshot) => {
+      setShifts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Shift)));
+    });
+    unsubscribers.push(unsubShifts);
+
+    // 4. Costs listener
+    const unsubCosts = onSnapshot(collection(db, 'operating_costs'), (snapshot) => {
+      setCosts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as OperatingCost)));
+    });
+    unsubscribers.push(unsubCosts);
+
+    // 5. Ad History listener
+    const unsubAdHistory = onSnapshot(collection(db, 'ad_history'), (snapshot) => {
+      setAdHistory(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AdHistoryRecord)));
+    });
+    unsubscribers.push(unsubAdHistory);
+
+    // 6. Settings listener
+    const unsubSettings = onSnapshot(doc(db, 'settings', 'global'), (snapshot) => {
+      if (snapshot.exists()) {
+        setSettings({ id: snapshot.id, ...snapshot.data() } as SystemSettings);
+      }
+    });
+    unsubscribers.push(unsubSettings);
+
+    // 7. Reader Shifts listener
+    const unsubReaderShifts = onSnapshot(collection(db, 'reader_shifts'), (snapshot) => {
+      setReaderSchedule(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ShiftRegistration)));
+    });
+    unsubscribers.push(unsubReaderShifts);
+
+    // 8. Sale Shifts listener
+    const unsubSaleShifts = onSnapshot(collection(db, 'sale_shifts'), (snapshot) => {
+      setSaleSchedule(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ShiftRegistration)));
+    });
+    unsubscribers.push(unsubSaleShifts);
+
+    return () => {
+      console.log("[App] Cleaning up real-time listeners...");
+      unsubscribers.forEach(unsub => unsub());
+    };
+  }, [db, user?.id]); // Re-run if user changes (e.g. login/logout)
+
+  // 9. Enrich and filter sales whenever rawSales or users change
+  useEffect(() => {
+    if (!user) return;
+
+    const enriched = rawSales.map(s => {
+      const reader = users.find(u => u.id === s.reader_id || u.full_name === s.reader_id);
+      const sale = users.find(u => u.id === s.sale_id || u.full_name === s.sale_id);
+      return {
+        ...s,
+        reader_name: reader?.full_name || s.reader_id || 'N/A',
+        sale_name: sale?.full_name || s.sale_id || 'N/A'
+      };
+    });
+
+    let filtered = enriched;
+    if (user.role === 'reader' || user.role === 'sale') {
+      const userId = user.id.trim().toLowerCase();
+      const userFullName = user.full_name.trim().toLowerCase();
+      
+      filtered = enriched.filter(s => {
+        const readerId = String(s.reader_id || '').trim().toLowerCase();
+        const saleId = String(s.sale_id || '').trim().toLowerCase();
+        const readerName = String(s.reader_name || '').trim().toLowerCase();
+        const saleName = String(s.sale_name || '').trim().toLowerCase();
+        
+        if (user.role === 'reader') return readerId === userId || readerName === userFullName;
+        return saleId === userId || saleName === userFullName;
+      });
     }
+
+    setSales(filtered);
+    setLoading(false); // Data is loaded
+  }, [rawSales, users, user?.id]);
+
+  // Update summary whenever relevant data changes
+  useEffect(() => {
+    const newSummary = calculateDashboardSummary(sales, users, costs, adHistory);
+    setSummary(newSummary);
+  }, [sales, users, costs, adHistory]);
+
+  const fetchData = async () => {
+    // Data is now handled by real-time listeners
+    console.log("[App] fetchData called (real-time listeners are active)");
   };
 
   useEffect(() => {
@@ -416,6 +442,7 @@ export default function App() {
           <DashboardView 
             user={user}
             summary={summary || INITIAL_SUMMARY}
+            adHistory={adHistory}
             fetchData={fetchData}
             sales={sales}
             users={users}
@@ -461,15 +488,6 @@ export default function App() {
             users={users}
           />
         );
-      case 'costs':
-        return (
-          <CostsView 
-            user={user}
-            costs={costs}
-            fetchData={fetchData}
-            loading={loading}
-          />
-        );
       case 'settings':
         return (
           <SettingsView 
@@ -491,11 +509,18 @@ export default function App() {
             setView={setView}
           />
         );
+      case 'ad_profit':
+        return (
+          <AdProfitView 
+            adHistory={adHistory}
+          />
+        );
       default:
         return (
           <DashboardView 
             user={user}
             summary={summary || INITIAL_SUMMARY}
+            adHistory={adHistory}
             fetchData={fetchData}
             sales={sales}
             users={users}

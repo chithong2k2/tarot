@@ -14,7 +14,7 @@ import {
   writeBatch
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { User, SaleRecord, Shift, ShiftRegistration, OperatingCost, SystemSettings } from '../types';
+import { User, SaleRecord, Shift, ShiftRegistration, OperatingCost, SystemSettings, AdHistoryRecord } from '../types';
 
 // Helper to check if Firebase is configured
 const isFirebaseReady = () => !!db;
@@ -40,7 +40,8 @@ export const firebaseService = {
         readerShiftsSnap, 
         saleShiftsSnap,
         costsSnap,
-        settingsSnap
+        settingsSnap,
+        adHistorySnap
       ] = await Promise.all([
         getDocs(collection(db, 'users')),
         getDocs(query(collection(db, 'sales'), orderBy('created_at', 'desc'))),
@@ -48,7 +49,8 @@ export const firebaseService = {
         getDocs(collection(db, 'reader_shifts')),
         getDocs(collection(db, 'sale_shifts')),
         getDocs(query(collection(db, 'operating_costs'), orderBy('date', 'desc'))),
-        getDoc(doc(db, 'settings', 'global'))
+        getDoc(doc(db, 'settings', 'global')),
+        getDocs(query(collection(db, 'ad_history'), orderBy('date', 'desc')))
       ]);
 
       return {
@@ -60,7 +62,8 @@ export const firebaseService = {
           readerShifts: readerShiftsSnap.docs.map(d => ({ id: d.id, ...d.data() } as ShiftRegistration)),
           saleShifts: saleShiftsSnap.docs.map(d => ({ id: d.id, ...d.data() } as ShiftRegistration)),
           costs: costsSnap.docs.map(d => ({ id: d.id, ...d.data() } as OperatingCost)),
-          settings: settingsSnap.exists() ? { id: settingsSnap.id, ...settingsSnap.data() } : { id: 'global', is_locked: false }
+          settings: settingsSnap.exists() ? { id: settingsSnap.id, ...settingsSnap.data() } : { id: 'global', is_locked: false },
+          adHistory: adHistorySnap.docs.map(d => ({ id: d.id, ...d.data() } as AdHistoryRecord))
         }
       };
     } catch (error) {
@@ -492,6 +495,27 @@ export const firebaseService = {
     }
   },
 
+  // --- Ad History ---
+  saveAdHistory: async (record: Omit<AdHistoryRecord, 'id'>): Promise<FirebaseResponse> => {
+    try {
+      // Use date as ID to ensure one record per day
+      const id = record.date;
+      await setDoc(doc(db, 'ad_history', id), {
+        ...record,
+        updated_at: new Date().toISOString()
+      }, { merge: true });
+      return { success: true, id };
+    } catch (error) {
+      console.error("[FirebaseService] saveAdHistory error:", error);
+      return { success: false, message: error instanceof Error ? error.message : String(error) };
+    }
+  },
+
+  getAdHistory: async (): Promise<AdHistoryRecord[]> => {
+    const snap = await getDocs(query(collection(db, 'ad_history'), orderBy('date', 'desc')));
+    return snap.docs.map(d => ({ id: d.id, ...d.data() } as AdHistoryRecord));
+  },
+
   // --- System ---
   resetWeek: async (): Promise<FirebaseResponse> => {
     const batch = writeBatch(db);
@@ -510,6 +534,10 @@ export const firebaseService = {
     // 3. Clear operating costs
     const costs = await getDocs(collection(db, 'operating_costs'));
     costs.forEach(d => batch.delete(d.ref));
+
+    // 4. Clear ad history
+    const adHistory = await getDocs(collection(db, 'ad_history'));
+    adHistory.forEach(d => batch.delete(d.ref));
     
     await batch.commit();
     return { success: true };

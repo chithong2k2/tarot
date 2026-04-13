@@ -1,5 +1,5 @@
 {
-  "name": "Tarot Shop",
-  "description": "A comprehensive revenue and salary management system for tarot shops, featuring role-based access, weekly dashboards, and Google Sheets integration.",
+  "name": "AdProfit - Facebook Ads Tracker",
+  "description": "Track your Facebook Ads spend in real-time and calculate net profit by integrating revenue and operating costs.",
   "requestFramePermissions": []
 }

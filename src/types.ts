@@ -42,6 +42,7 @@ export interface DashboardSummary {
   totalSaleCommission: number;
   totalExpenses: number;
   totalOperatingCosts: number;
+  totalAdSpend: number;
   netProfit: number;
   revenueByDay: { name: string; value: number }[];
   profitByDay: { name: string; value: number }[];
@@ -50,6 +51,13 @@ export interface DashboardSummary {
   saleCommissionByDay: { name: string; value: number }[];
   topReader: { name: string; amount: number };
   topSale: { name: string; amount: number };
+  dailyStats: {
+    name: string;
+    revenue: number;
+    profit: number;
+    adSpend: number;
+    commission: number;
+  }[];
 }
 
 export interface WeeklyRevenueItem {
@@ -81,4 +89,23 @@ export interface SystemSettings {
   bank_name?: string;
   bank_account_number?: string;
   bank_account_name?: string;
+}
+
+export interface AdProfitData {
+  revenue: number;
+  adSpend: number;
+  operatingCosts: number;
+  netProfit: number;
+  date: string;
+}
+
+export interface AdHistoryRecord {
+  id: string;
+  date: string; // YYYY-MM-DD
+  spend: number;
+  revenue: number;
+  operating_costs: number;
+  commission: number;
+  net_profit: number;
+  updated_at: string;
 }

@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { motion } from 'motion/react';
-import { Trash2, QrCode, X, Zap, Check } from 'lucide-react';
+import { Trash2, QrCode, X } from 'lucide-react';
 import { User, SaleRecord, SystemSettings } from '../../types';
 import { formatVND } from '../DashboardComponents';
 import { firebaseService } from '../../services/firebaseService';
@@ -34,8 +34,6 @@ export const SaleEntryView: React.FC<SaleEntryViewProps> = ({
 }) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false);
   const [showQR, setShowQR] = React.useState(false);
-  const [quickInput, setQuickInput] = useState('');
-  const [parseSuccess, setParseSuccess] = useState(false);
 
   const generateVietQR = () => {
     if (!systemSettings?.bank_account_number) return '';
@@ -49,81 +47,8 @@ export const SaleEntryView: React.FC<SaleEntryViewProps> = ({
     return `https://img.vietqr.io/image/${bankId}-${accountNo}-compact2.png?amount=${amount}&addInfo=${encodeURIComponent(description)}&accountName=${encodeURIComponent(accountName)}`;
   };
 
-  const handleQuickParse = () => {
-    if (!quickInput.trim()) return;
-
-    // Pattern: [Customer Name] [Amount] [Reader] [Sale]
-    // Example: "Thanh Tiến 169k giang, thông"
-    
-    const amountMatch = quickInput.match(/(\d+)(k|000)/i);
-    if (!amountMatch) {
-      alert("Không tìm thấy số tiền (ví dụ: 169k hoặc 169000)");
-      return;
-    }
-
-    const amountStr = amountMatch[1];
-    const amount = parseInt(amountStr) * (amountMatch[2].toLowerCase() === 'k' ? 1000 : 1);
-    const amountIndex = quickInput.indexOf(amountMatch[0]);
-
-    const customerName = quickInput.substring(0, amountIndex).trim();
-    const remaining = quickInput.substring(amountIndex + amountMatch[0].length).trim();
-
-    // Split remaining by common separators
-    const parts = remaining.split(/[\s,/-]+/).filter(p => p.length > 0);
-    
-    let readerId = '';
-    let saleId = '';
-
-    const readers = users.filter(u => u.role === 'reader');
-    const sales = users.filter(u => u.role === 'sale');
-
-    // Try to match reader and sale from parts
-    parts.forEach(part => {
-      const lowerPart = part.toLowerCase();
-      
-      // Find reader
-      if (!readerId) {
-        const foundReader = readers.find(r => 
-          r.full_name.toLowerCase().includes(lowerPart) || 
-          r.username.toLowerCase().includes(lowerPart)
-        );
-        if (foundReader) readerId = foundReader.id;
-      }
-
-      // Find sale
-      if (!saleId) {
-        const foundSale = sales.find(s => 
-          s.full_name.toLowerCase().includes(lowerPart) || 
-          s.username.toLowerCase().includes(lowerPart)
-        );
-        if (foundSale) saleId = foundSale.id;
-      }
-    });
-
-    // Package mapping
-    let packageName = '';
-    if (amount === 35000) packageName = '1 câu';
-    else if (amount === 70000 || amount === 80000) packageName = '3 câu';
-    else if (amount === 100000) packageName = '5 câu';
-    else if (amount === 129000) packageName = '7 câu';
-    else if (amount === 169000) packageName = '10 câu';
-    else if (amount === 160000) packageName = 'gói 30p 1 chủ đề';
-    else if (amount === 180000) packageName = 'gói 30p nhiều chủ đề';
-    else packageName = `${amount/1000}k`;
-
-    setSaleForm({
-      ...saleForm,
-      customer_name: customerName,
-      amount: amount,
-      package_name: packageName,
-      reader_id: readerId,
-      sale_id: saleId,
-      date: new Date().toISOString().split('T')[0]
-    });
-
-    setParseSuccess(true);
-    setTimeout(() => setParseSuccess(false), 2000);
-  };
+  console.log("[SaleEntryView] Current users:", users);
+  console.log("[SaleEntryView] Current saleForm:", saleForm);
 
   return (
     <motion.div 
@@ -138,42 +63,6 @@ export const SaleEntryView: React.FC<SaleEntryViewProps> = ({
           <h2 className="text-2xl font-bold">{editingSale ? 'Chỉnh Sửa Giao Dịch' : 'Nhập Dữ Liệu Khách Hàng'}</h2>
           <p className="text-indigo-100 mt-1">{editingSale ? 'Cập nhật thông tin giao dịch đã chọn' : 'Ghi nhận doanh thu mới cho hệ thống'}</p>
         </div>
-
-        {!editingSale && (
-          <div className="p-8 pb-0">
-            <div className="bg-indigo-50 p-6 rounded-2xl border border-indigo-100 space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2 text-indigo-900 font-bold">
-                  <Zap size={18} className="text-indigo-600" />
-                  <span>Nhập Nhanh (Quick Entry)</span>
-                </div>
-                <span className="text-[10px] bg-indigo-200 text-indigo-700 px-2 py-1 rounded-full font-bold uppercase tracking-wider">Tối ưu</span>
-              </div>
-              <div className="relative">
-                <input 
-                  type="text"
-                  value={quickInput}
-                  onChange={e => setQuickInput(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleQuickParse())}
-                  placeholder="Ví dụ: Thanh Tiến 169k giang, thông"
-                  className="w-full pl-4 pr-24 py-3 rounded-xl border border-indigo-200 outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-sm"
-                />
-                <button 
-                  type="button"
-                  onClick={handleQuickParse}
-                  className={`absolute right-2 top-1/2 -translate-y-1/2 px-4 py-1.5 rounded-lg font-bold text-xs transition-all flex items-center space-x-1 ${parseSuccess ? 'bg-emerald-500 text-white' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
-                >
-                  {parseSuccess ? <Check size={14} /> : null}
-                  <span>{parseSuccess ? 'Xong' : 'Phân Tích'}</span>
-                </button>
-              </div>
-              <p className="text-[10px] text-indigo-400 italic">
-                Cấu trúc: [Tên khách] [Số tiền k] [Tên Reader] [Tên Sale]
-              </p>
-            </div>
-          </div>
-        )}
-
         <form onSubmit={handleSaleSubmit} className="p-8 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
