@@ -34,6 +34,63 @@ export const SaleEntryView: React.FC<SaleEntryViewProps> = ({
 }) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false);
   const [showQR, setShowQR] = React.useState(false);
+  const [quickInput, setQuickInput] = React.useState('');
+
+  const handleQuickEntry = () => {
+    if (!quickInput.trim()) return;
+
+    // Regex to find price like 169k, 169000, 169.000
+    const priceRegex = /(\d+(?:\.\d+)?)\s*k/i;
+    const priceMatch = quickInput.match(priceRegex);
+
+    if (priceMatch) {
+      const amount = parseFloat(priceMatch[1].replace(/\./g, '')) * 1000;
+      const customerName = quickInput.substring(0, priceMatch.index).trim();
+      const remaining = quickInput.substring(priceMatch.index! + priceMatch[0].length).trim();
+      
+      // Split remaining by comma or space to get staff names
+      const staffParts = remaining.split(/[,\s]+/).filter(Boolean);
+      
+      let readerId = '';
+      let saleId = '';
+
+      // Try to find matching staff
+      staffParts.forEach(part => {
+        const lowerPart = part.toLowerCase();
+        const match = users.find(u => 
+          u.full_name.toLowerCase().includes(lowerPart) || 
+          u.username.toLowerCase().includes(lowerPart)
+        );
+
+        if (match) {
+          if (match.role === 'reader' && !readerId) readerId = match.id;
+          if (match.role === 'sale' && !saleId) saleId = match.id;
+        }
+      });
+
+      // Map price to package name
+      let packageName = '';
+      if (amount === 35000) packageName = '1 câu';
+      else if (amount === 80000) packageName = '3 câu';
+      else if (amount === 100000) packageName = '5 câu';
+      else if (amount === 129000) packageName = '7 câu';
+      else if (amount === 169000) packageName = '10 câu';
+      else packageName = `${amount / 1000}k`;
+
+      setSaleForm({
+        ...saleForm,
+        customer_name: customerName,
+        amount: amount,
+        package_name: packageName,
+        reader_id: readerId || saleForm.reader_id,
+        sale_id: saleId || saleForm.sale_id
+      });
+
+      setQuickInput('');
+    } else {
+      alert('Không tìm thấy giá tiền (ví dụ: 169k) trong nội dung nhập nhanh.');
+    }
+  };
 
   const generateVietQR = () => {
     if (!systemSettings?.bank_account_number) return '';
@@ -63,6 +120,33 @@ export const SaleEntryView: React.FC<SaleEntryViewProps> = ({
           <h2 className="text-2xl font-bold">{editingSale ? 'Chỉnh Sửa Giao Dịch' : 'Nhập Dữ Liệu Khách Hàng'}</h2>
           <p className="text-indigo-100 mt-1">{editingSale ? 'Cập nhật thông tin giao dịch đã chọn' : 'Ghi nhận doanh thu mới cho hệ thống'}</p>
         </div>
+
+        {!editingSale && (
+          <div className="p-8 pb-0">
+            <div className="bg-indigo-50 p-6 rounded-2xl border border-indigo-100">
+              <label className="block text-xs font-bold text-indigo-600 uppercase tracking-widest mb-3">Nhập nhanh (Tên khách - Giá - Reader, Sale)</label>
+              <div className="flex gap-3">
+                <input 
+                  type="text"
+                  value={quickInput}
+                  onChange={e => setQuickInput(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleQuickEntry())}
+                  placeholder="Ví dụ: Chu Khánh 169k Giang, Thông"
+                  className="flex-1 px-4 py-3 rounded-xl border border-indigo-200 outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-sm"
+                />
+                <button 
+                  type="button"
+                  onClick={handleQuickEntry}
+                  className="px-6 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-all shadow-sm"
+                >
+                  Xử lý
+                </button>
+              </div>
+              <p className="text-[10px] text-indigo-400 mt-2 italic">* Hệ thống sẽ tự động nhận diện tên khách, giá tiền và tìm nhân viên phù hợp.</p>
+            </div>
+          </div>
+        )}
+
         <form onSubmit={handleSaleSubmit} className="p-8 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>

@@ -512,6 +512,7 @@ export default function App() {
       case 'ad_profit':
         return (
           <AdProfitView 
+            summary={summary || INITIAL_SUMMARY}
             adHistory={adHistory}
           />
         );

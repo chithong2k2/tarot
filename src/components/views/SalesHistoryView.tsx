@@ -177,7 +177,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({
                   return (
                     <tr key={s.id} className="hover:bg-slate-50/50 transition-colors group">
                       <td className="px-6 py-4">
-                        <span className="text-slate-600">{new Date(s.date).toLocaleDateString('vi-VN')}</span>
+                        <span className="text-slate-600">{new Date(s.date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
                       </td>
                       <td className="px-6 py-4">
                         <span className="font-medium text-slate-900">{reader?.full_name || s.reader_id}</span>
