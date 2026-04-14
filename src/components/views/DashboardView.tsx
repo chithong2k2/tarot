@@ -31,6 +31,7 @@ import { User, SaleRecord, DashboardSummary, AdHistoryRecord } from '../../types
 import { firebaseService } from '../../services/firebaseService';
 import { StatCard, formatVND } from '../DashboardComponents';
 import { exportToExcel } from '../../utils/export';
+import { getVNDayName } from '../../utils/dateUtils';
 
 import { ConfirmModal } from '../ConfirmModal';
 
@@ -86,14 +87,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   const getDayName = (dateStr: string) => {
     try {
-      const date = new Date(dateStr);
-      if (isNaN(date.getTime())) {
-        const parts = String(dateStr).split('-');
-        const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
-        if (isNaN(d.getTime())) return 'N/A';
-        const days = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
-        return days[d.getDay()];
-      }
+      // Use Vietnam timezone to ensure the day name is correct regardless of browser location
+      const date = new Date(`${dateStr}T00:00:00+07:00`);
+      if (isNaN(date.getTime())) return 'N/A';
       const days = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
       return days[date.getDay()];
     } catch (e) {
@@ -270,8 +266,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 />
                 <Bar dataKey="revenue" radius={[6, 6, 0, 0]}>
                   {(summary?.dailyStats || []).map((entry, index) => {
-                    const days = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
-                    const todayName = days[new Date().getDay()];
+                    const todayName = getVNDayName();
                     const isToday = entry.name === todayName;
                     
                     return (

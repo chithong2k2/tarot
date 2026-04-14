@@ -1,4 +1,5 @@
 import { SaleRecord, User, DashboardSummary, OperatingCost, AdHistoryRecord } from '../types';
+import { getVNMonday } from './dateUtils';
 
 export const calculateDashboardSummary = (
   sales: SaleRecord[], 
@@ -38,21 +39,21 @@ export const calculateDashboardSummary = (
   users.forEach(u => userMap.set(u.id, u));
 
   const getDayNameFromDate = (dateStr: string) => {
-    let date: Date;
     try {
-      date = new Date(dateStr);
-      if (isNaN(date.getTime())) {
-        const parts = String(dateStr).split('-');
-        date = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
-      }
+      // Use Vietnam timezone to ensure the day name is correct
+      const date = new Date(`${dateStr}T00:00:00+07:00`);
+      if (isNaN(date.getTime())) return 'N/A';
+      const days = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
+      return days[date.getDay()];
     } catch (e) {
-      date = new Date();
+      return 'N/A';
     }
-    const days = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
-    return days[date.getDay()];
   };
 
   operatingCosts.forEach(c => {
+    const recordDate = new Date(`${c.date}T00:00:00+07:00`);
+    if (recordDate < startOfWeek) return;
+
     const amount = Number(c.amount) || 0;
     totalOperatingCosts += amount;
     const dayName = getDayNameFromDate(c.date);
@@ -61,19 +62,12 @@ export const calculateDashboardSummary = (
     }
   });
 
-  const getStartOfWeek = () => {
-    const now = new Date();
-    const day = now.getDay(); // 0 is Sunday, 1 is Monday...
-    const diff = now.getDate() - day + (day === 0 ? -6 : 1); // Adjust to Monday
-    const start = new Date(now.setDate(diff));
-    start.setHours(0, 0, 0, 0);
-    return start;
-  };
-
-  const startOfWeek = getStartOfWeek();
+  const startOfWeek = getVNMonday();
+  startOfWeek.setHours(0, 0, 0, 0);
 
   adHistory.forEach(h => {
-    const recordDate = new Date(h.date);
+    // Use Vietnam timezone for comparison
+    const recordDate = new Date(`${h.date}T00:00:00+07:00`);
     if (recordDate < startOfWeek) return;
 
     const amount = Number(h.spend) || 0;
@@ -88,6 +82,9 @@ export const calculateDashboardSummary = (
   });
 
   sales.forEach(s => {
+    const recordDate = new Date(`${s.date}T00:00:00+07:00`);
+    if (recordDate < startOfWeek) return;
+
     const amount = Number(s.amount) || 0;
     const tip = Number(s.tip) || 0;
     totalAmount += amount;

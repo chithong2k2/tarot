@@ -1,19 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { AlertCircle, History, Calendar, Facebook, TrendingDown, Wallet } from 'lucide-react';
+import { AlertCircle, History, Calendar, Facebook, TrendingDown, Wallet, Save, Edit3 } from 'lucide-react';
 import { DashboardSummary, AdHistoryRecord } from '../../types';
+import { firebaseService } from '../../services/firebaseService';
+import { formatVNTime, getVNDateStr, getVNMonday } from '../../utils/dateUtils';
 
 interface AdProfitViewProps {
   summary: DashboardSummary;
   adHistory: AdHistoryRecord[];
+  fetchData: () => Promise<void>;
 }
 
-export const AdProfitView: React.FC<AdProfitViewProps> = ({ summary, adHistory }) => {
+export const AdProfitView: React.FC<AdProfitViewProps> = ({ summary, adHistory, fetchData }) => {
   const [adSpend, setAdSpend] = useState<number>(0);
   const [error] = useState<string | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [weeklyInputs, setWeeklyInputs] = useState<Record<string, number>>({});
+  const [isSaving, setIsSaving] = useState(false);
 
   // Calculate today's revenue and operating costs from summary or raw data
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = getVNDateStr();
   
   // Find today's record in history if it exists
   const todayRecord = adHistory.find(h => h.date === todayStr);
@@ -24,12 +30,68 @@ export const AdProfitView: React.FC<AdProfitViewProps> = ({ summary, adHistory }
     }
   }, [todayRecord]);
 
+  // Initialize weekly inputs from summary
+  useEffect(() => {
+    const inputs: Record<string, number> = {};
+    summary.dailyStats.forEach(day => {
+      inputs[day.name] = day.adSpend;
+    });
+    setWeeklyInputs(inputs);
+  }, [summary]);
+
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value);
   };
 
+  const handleSaveWeeklyAds = async () => {
+    setIsSaving(true);
+    try {
+      const monday = getVNMonday();
+      const days = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ nhật'];
+      
+      for (let i = 0; i < 7; i++) {
+        const date = new Date(monday);
+        date.setDate(monday.getDate() + i);
+        
+        const dateStr = new Intl.DateTimeFormat('sv-SE', {
+          timeZone: 'Asia/Ho_Chi_Minh',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit'
+        }).format(date);
+
+        const dayName = days[i];
+        const spend = weeklyInputs[dayName] || 0;
+        
+        await firebaseService.saveWeeklyAdCost(dayName, spend, dateStr);
+      }
+      
+      await fetchData();
+      setIsEditing(false);
+    } catch (err) {
+      console.error("Error saving weekly ads:", err);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   // Calculate total ad spend for the week (Mon-Sun)
   const totalWeeklyAdSpend = summary.dailyStats.reduce((sum, day) => sum + day.adSpend, 0);
+
+  // Get current week range for display and filtering
+  const monday = getVNMonday();
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  
+  const formatDateRange = (d: Date) => {
+    return new Intl.DateTimeFormat('vi-VN', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    }).format(d);
+  };
+
+  const weekRangeStr = `${formatDateRange(monday)} - ${formatDateRange(sunday)}`;
 
   return (
     <motion.div
@@ -41,9 +103,64 @@ export const AdProfitView: React.FC<AdProfitViewProps> = ({ summary, adHistory }
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Facebook Ads & Lợi Nhuận</h1>
-          <p className="text-slate-500">Dữ liệu chi phí Ads được cập nhật tự động mỗi 5 phút.</p>
+          <p className="text-slate-500">Dữ liệu chi phí Ads được cập nhật tự động mỗi 5 phút hoặc nhập thủ công.</p>
         </div>
+        <button 
+          onClick={() => setIsEditing(!isEditing)}
+          className={`flex items-center space-x-2 px-4 py-2 rounded-xl font-bold transition-all ${
+            isEditing ? 'bg-slate-100 text-slate-600' : 'bg-indigo-600 text-white shadow-sm hover:bg-indigo-700'
+          }`}
+        >
+          {isEditing ? <History size={18} /> : <Edit3 size={18} />}
+          <span>{isEditing ? 'Hủy chỉnh sửa' : 'Nhập Ads Tuần Này'}</span>
+        </button>
       </div>
+
+      {isEditing && (
+        <motion.div 
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: 'auto' }}
+          className="bg-white p-6 rounded-2xl border-2 border-indigo-100 shadow-md space-y-6"
+        >
+          <div className="flex items-center justify-between">
+            <h3 className="font-bold text-slate-900 flex items-center space-x-2">
+              <Calendar className="text-indigo-600" size={20} />
+              <span>Cập Nhật Chi Phí Ads Theo Tuần</span>
+            </h3>
+            <span className="text-xs font-bold text-indigo-400 uppercase tracking-widest">Thứ 2 - Chủ Nhật</span>
+          </div>
+          
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
+            {['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ nhật'].map((day) => (
+              <div key={day} className="space-y-2">
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">{day}</label>
+                <input 
+                  type="number"
+                  value={weeklyInputs[day] || ''}
+                  onChange={(e) => setWeeklyInputs({ ...weeklyInputs, [day]: Number(e.target.value) })}
+                  placeholder="0"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-bold text-slate-700"
+                />
+              </div>
+            ))}
+          </div>
+
+          <div className="flex justify-end pt-2">
+            <button 
+              onClick={handleSaveWeeklyAds}
+              disabled={isSaving}
+              className="flex items-center space-x-2 px-6 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-all shadow-lg disabled:opacity-50"
+            >
+              {isSaving ? (
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+              ) : (
+                <Save size={18} />
+              )}
+              <span>{isSaving ? 'Đang lưu...' : 'Lưu Chi Phí Tuần'}</span>
+            </button>
+          </div>
+        </motion.div>
+      )}
 
       {/* Summary Cards for Ads */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -97,7 +214,7 @@ export const AdProfitView: React.FC<AdProfitViewProps> = ({ summary, adHistory }
             <h3 className="font-bold text-slate-900">Chi Tiết Ads Theo Tuần</h3>
           </div>
           <div className="text-xs font-bold text-slate-400 uppercase tracking-widest">
-            Thứ 2 - Chủ Nhật
+            {weekRangeStr}
           </div>
         </div>
         <div className="overflow-x-auto">
@@ -110,15 +227,26 @@ export const AdProfitView: React.FC<AdProfitViewProps> = ({ summary, adHistory }
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {adHistory.length > 0 ? (
-                adHistory.map((record) => {
-                  const dateObj = new Date(record.date);
-                  const days = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
-                  const dayName = days[dateObj.getDay()];
-                  const formattedDate = record.date.split('-').reverse().join('/');
-
-                  return (
-                    <tr key={record.id} className="hover:bg-indigo-50/30 transition-colors group">
+              {(() => {
+                const days = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ nhật'];
+                const rows = [];
+                
+                for (let i = 0; i < 7; i++) {
+                  const date = new Date(monday);
+                  date.setDate(monday.getDate() + i);
+                  const dateStr = new Intl.DateTimeFormat('sv-SE', {
+                    timeZone: 'Asia/Ho_Chi_Minh',
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit'
+                  }).format(date);
+                  
+                  const record = adHistory.find(h => h.date === dateStr);
+                  const dayName = days[i];
+                  const formattedDate = dateStr.split('-').reverse().join('/');
+                  
+                  rows.push(
+                    <tr key={dateStr} className="hover:bg-indigo-50/30 transition-colors group">
                       <td className="px-6 py-4">
                         <div className="flex items-center space-x-2">
                           <Calendar size={14} className="text-slate-400 group-hover:text-indigo-500 transition-colors" />
@@ -132,17 +260,21 @@ export const AdProfitView: React.FC<AdProfitViewProps> = ({ summary, adHistory }
                           {dayName}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-right font-mono text-blue-600 font-bold">{formatCurrency(record.spend)}</td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex flex-col items-end">
+                          <span className={`font-mono font-bold ${record ? 'text-blue-600' : 'text-slate-300'}`}>
+                            {formatCurrency(record ? record.spend : 0)}
+                          </span>
+                          {record?.updated_at && (
+                            <span className="text-[9px] text-slate-400 font-medium">Cập nhật: {formatVNTime(record.updated_at).split(' ')[1]}</span>
+                          )}
+                        </div>
+                      </td>
                     </tr>
                   );
-                })
-              ) : (
-                <tr>
-                  <td colSpan={3} className="px-6 py-10 text-center text-slate-400 italic">
-                    Đang chờ dữ liệu cập nhật tự động từ Facebook...
-                  </td>
-                </tr>
-              )}
+                }
+                return rows;
+              })()}
             </tbody>
           </table>
         </div>

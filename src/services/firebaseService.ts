@@ -516,6 +516,37 @@ export const firebaseService = {
     return snap.docs.map(d => ({ id: d.id, ...d.data() } as AdHistoryRecord));
   },
 
+  saveWeeklyAdCost: async (dayOfWeek: string, spend: number, date: string): Promise<FirebaseResponse> => {
+    try {
+      // Save to a specific collection for weekly tracking if needed
+      // But also update the main ad_history for that date
+      const id = `${date}_${dayOfWeek}`;
+      await setDoc(doc(db, 'weekly_ad_costs', id), {
+        dayOfWeek,
+        spend,
+        date,
+        updated_at: new Date().toISOString()
+      });
+
+      // Also update ad_history to keep everything in sync
+      await setDoc(doc(db, 'ad_history', date), {
+        date,
+        spend,
+        updated_at: new Date().toISOString()
+      }, { merge: true });
+
+      return { success: true };
+    } catch (error) {
+      console.error("[FirebaseService] saveWeeklyAdCost error:", error);
+      return { success: false, message: error instanceof Error ? error.message : String(error) };
+    }
+  },
+
+  getWeeklyAdCosts: async (): Promise<any[]> => {
+    const snap = await getDocs(collection(db, 'weekly_ad_costs'));
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  },
+
   // --- System ---
   resetWeek: async (): Promise<FirebaseResponse> => {
     const batch = writeBatch(db);

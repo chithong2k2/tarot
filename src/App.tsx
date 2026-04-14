@@ -15,6 +15,7 @@ import { SalesHistoryView } from './components/views/SalesHistoryView';
 import { AdProfitView } from './components/views/AdProfitView';
 import { LoginView } from './components/views/LoginView';
 import { calculateDashboardSummary, INITIAL_SUMMARY } from './utils/dashboard';
+import { getVNDateStr, getVNDayName } from './utils/dateUtils';
 import { apiService } from './services/api';
 import { Menu, X } from 'lucide-react';
 
@@ -35,10 +36,7 @@ export default function App() {
   const [settings, setSettings] = useState<SystemSettings>({ id: 'global', is_locked: false });
   const [error, setError] = useState<string | null>(null);
 
-  const [selectedDay, setSelectedDay] = useState<string>(() => {
-    const days = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
-    return days[new Date().getDay()];
-  });
+  const [selectedDay, setSelectedDay] = useState<string>(() => getVNDayName());
   const [selectedReader, setSelectedReader] = useState<string>(() => {
     try {
       const savedUser = localStorage.getItem('tarot_user');
@@ -215,15 +213,16 @@ export default function App() {
   const [userForm, setUserForm] = useState<Partial<User>>({
     username: '', password: '', role: 'reader', full_name: '', bank_account: '', commission_percent: 30
   });
+
   const [saleForm, setSaleForm] = useState<Partial<SaleRecord>>({
-    reader_id: '', sale_id: '', customer_name: '', package_name: '', amount: 0, tip: 0, date: new Date().toISOString().split('T')[0]
+    reader_id: '', sale_id: '', customer_name: '', package_name: '', amount: 0, tip: 0, date: getVNDateStr()
   });
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
 
   // Sync forms with editing states
   useEffect(() => {
     if (editingSale) setSaleForm({ ...editingSale });
-    else setSaleForm({ reader_id: '', sale_id: '', customer_name: '', package_name: '', amount: 0, tip: 0, date: new Date().toISOString().split('T')[0] });
+    else setSaleForm({ reader_id: '', sale_id: '', customer_name: '', package_name: '', amount: 0, tip: 0, date: getVNDateStr() });
   }, [editingSale]);
 
   useEffect(() => {
@@ -514,6 +513,7 @@ export default function App() {
           <AdProfitView 
             summary={summary || INITIAL_SUMMARY}
             adHistory={adHistory}
+            fetchData={fetchData}
           />
         );
       default:

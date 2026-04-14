@@ -13,6 +13,7 @@ import {
 import { motion } from 'motion/react';
 import { SaleRecord, User } from '../../types';
 import { formatVND } from '../DashboardComponents';
+import { formatVNTime } from '../../utils/dateUtils';
 import { firebaseService } from '../../services/firebaseService';
 import { ConfirmModal } from '../ConfirmModal';
 
@@ -177,7 +178,12 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({
                   return (
                     <tr key={s.id} className="hover:bg-slate-50/50 transition-colors group">
                       <td className="px-6 py-4">
-                        <span className="text-slate-600">{new Date(s.date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
+                        <div className="flex flex-col">
+                          <span className="font-medium text-slate-900">{new Date(s.date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
+                          {s.created_at && (
+                            <span className="text-[10px] text-slate-400">{formatVNTime(s.created_at).split(' ')[1]}</span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-6 py-4">
                         <span className="font-medium text-slate-900">{reader?.full_name || s.reader_id}</span>

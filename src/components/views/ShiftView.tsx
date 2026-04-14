@@ -15,6 +15,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { User, Shift, ShiftRegistration, SystemSettings } from '../../types';
 import { firebaseService } from '../../services/firebaseService';
 import { ConfirmModal } from '../ConfirmModal';
+import { getVNDayName } from '../../utils/dateUtils';
 
 interface ShiftViewProps {
   user: User;
@@ -43,10 +44,7 @@ export const ShiftView: React.FC<ShiftViewProps> = ({
   settings,
   users
 }) => {
-  const [selectedDay, setSelectedDay] = useState<string>(() => {
-    const days = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
-    return days[new Date().getDay()];
-  });
+  const [selectedDay, setSelectedDay] = useState<string>(() => getVNDayName());
 
   const [showShiftForm, setShowShiftForm] = useState(false);
   const [deletingShiftId, setDeletingShiftId] = useState<string | null>(null);
