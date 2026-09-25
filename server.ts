@@ -121,21 +121,19 @@ async function startServer() {
 
   app.use(express.json());
 
-  // API route to fetch Facebook Ads spend
+  // API route to fetch Facebook Ads spend for today
   app.get("/api/fb-spend", async (req, res) => {
     const accessToken = process.env.FB_ACCESS_TOKEN;
     const adAccountId = process.env.FB_AD_ACCOUNT_ID;
 
     if (!accessToken || !adAccountId) {
       return res.status(400).json({ 
-        error: "Missing Facebook credentials. Please set FB_ACCESS_TOKEN and FB_AD_ACCOUNT_ID in environment variables." 
+        error: "Missing Facebook credentials in .env file." 
       });
     }
 
     try {
-      // Format ad account ID (ensure it starts with act_)
       const formattedId = adAccountId.startsWith("act_") ? adAccountId : `act_${adAccountId}`;
-      
       const response = await axios.get(
         `https://graph.facebook.com/v19.0/${formattedId}/insights`,
         {
@@ -149,13 +147,69 @@ async function startServer() {
 
       const insights = response.data.data;
       const spend = insights.length > 0 ? parseFloat(insights[0].spend) : 0;
-
       res.json({ spend });
     } catch (error: any) {
       console.error("Facebook API Error:", error.response?.data || error.message);
       res.status(500).json({ 
         error: "Failed to fetch data from Facebook", 
         details: error.response?.data?.error?.message || error.message 
+      });
+    }
+  });
+
+  // API route to sync realtime daily Facebook Ads spend into Firestore
+  app.post("/api/sync-fb-ads", async (req, res) => {
+    const accessToken = process.env.FB_ACCESS_TOKEN;
+    const adAccountId = process.env.FB_AD_ACCOUNT_ID;
+
+    if (!accessToken || !adAccountId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Chưa cấu hình FB_ACCESS_TOKEN và FB_AD_ACCOUNT_ID trong file .env" 
+      });
+    }
+
+    try {
+      const formattedId = adAccountId.startsWith("act_") ? adAccountId : `act_${adAccountId}`;
+      const response = await axios.get(
+        `https://graph.facebook.com/v19.0/${formattedId}/insights`,
+        {
+          params: {
+            fields: "spend",
+            date_preset: "this_week_mon_today",
+            time_increment: 1,
+            access_token: accessToken,
+          },
+        }
+      );
+
+      const insights = response.data.data || [];
+      const updatedDays: any[] = [];
+
+      for (const item of insights) {
+        const dateStr = item.date_start;
+        const spend = parseFloat(item.spend) || 0;
+
+        await setDoc(doc(db, 'ad_history', dateStr), {
+          date: dateStr,
+          spend: spend,
+          updated_at: new Date().toISOString()
+        }, { merge: true });
+
+        updatedDays.push({ date: dateStr, spend });
+      }
+
+      console.log(`[FB Sync] Synced ${updatedDays.length} days of ad spend into ad_history`);
+      res.json({ 
+        success: true, 
+        message: `Đã cập nhật chi phí Ads cho ${updatedDays.length} ngày thành công!`,
+        days: updatedDays 
+      });
+    } catch (error: any) {
+      console.error("Facebook Sync Error:", error.response?.data || error.message);
+      res.status(500).json({ 
+        success: false, 
+        message: "Lỗi kéo dữ liệu từ Facebook: " + (error.response?.data?.error?.message || error.message)
       });
     }
   });

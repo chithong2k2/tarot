@@ -14,7 +14,7 @@ import {
   writeBatch
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { User, SaleRecord, Shift, ShiftRegistration, OperatingCost, SystemSettings, AdHistoryRecord } from '../types';
+import { User, SaleRecord, Shift, ShiftRegistration, OperatingCost, SystemSettings, AdHistoryRecord, PayrollPeriod, PayrollStaffItem } from '../types';
 
 // Helper to check if Firebase is configured
 const isFirebaseReady = () => !!db;
@@ -572,6 +572,82 @@ export const firebaseService = {
     
     await batch.commit();
     return { success: true };
+  },
+
+  // --- Payroll Management ---
+  savePayrollPeriod: async (period: PayrollPeriod): Promise<FirebaseResponse> => {
+    try {
+      if (!isFirebaseReady()) return { success: false, message: 'Database chưa kết nối' };
+      const id = period.id || `period_${Date.now()}`;
+      await setDoc(doc(db, 'payrolls', id), {
+        ...period,
+        id,
+        created_at: period.created_at || new Date().toISOString()
+      });
+      return { success: true, id };
+    } catch (error) {
+      console.error("[FirebaseService] savePayrollPeriod error:", error);
+      return { success: false, message: error instanceof Error ? error.message : String(error) };
+    }
+  },
+
+  getPayrollPeriods: async (): Promise<PayrollPeriod[]> => {
+    if (!isFirebaseReady()) return [];
+    try {
+      const snap = await getDocs(query(collection(db, 'payrolls'), orderBy('created_at', 'desc')));
+      return snap.docs.map(d => ({ id: d.id, ...d.data() } as PayrollPeriod));
+    } catch (error) {
+      console.error("[FirebaseService] getPayrollPeriods error:", error);
+      return [];
+    }
+  },
+
+  deletePayrollPeriod: async (id: string): Promise<FirebaseResponse> => {
+    try {
+      if (!isFirebaseReady()) return { success: false, message: 'Database chưa kết nối' };
+      await deleteDoc(doc(db, 'payrolls', id));
+      return { success: true };
+    } catch (error) {
+      console.error("[FirebaseService] deletePayrollPeriod error:", error);
+      return { success: false, message: error instanceof Error ? error.message : String(error) };
+    }
+  },
+
+  updatePayrollItem: async (periodId: string, staffUserId: string, updates: Partial<PayrollStaffItem>): Promise<FirebaseResponse> => {
+    try {
+      if (!isFirebaseReady()) return { success: false, message: 'Database chưa kết nối' };
+      const periodRef = doc(db, 'payrolls', periodId);
+      const periodSnap = await getDoc(periodRef);
+      if (!periodSnap.exists()) return { success: false, message: 'Kỳ lương không tồn tại' };
+
+      const periodData = periodSnap.data() as PayrollPeriod;
+      const updatedItems = periodData.items.map(item => {
+        if (item.user_id === staffUserId) {
+          return { ...item, ...updates };
+        }
+        return item;
+      });
+
+      await updateDoc(periodRef, { items: updatedItems });
+      return { success: true };
+    } catch (error) {
+      console.error("[FirebaseService] updatePayrollItem error:", error);
+      return { success: false, message: error instanceof Error ? error.message : String(error) };
+    }
+  },
+
+  updateStaffBank: async (userId: string, bankName: string, bankAccount: string): Promise<FirebaseResponse> => {
+    try {
+      if (!isFirebaseReady()) return { success: false, message: 'Database chưa kết nối' };
+      await updateDoc(doc(db, 'users', userId), {
+        bank_name: bankName,
+        bank_account: bankAccount
+      });
+      return { success: true };
+    } catch (error) {
+      console.error("[FirebaseService] updateStaffBank error:", error);
+      return { success: false, message: error instanceof Error ? error.message : String(error) };
+    }
   },
 
   // --- Real-time Listeners (Optional but recommended) ---

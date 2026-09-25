@@ -13,15 +13,17 @@ import { CostsView } from './components/views/CostsView';
 import { SettingsView } from './components/views/SettingsView';
 import { SalesHistoryView } from './components/views/SalesHistoryView';
 import { AdProfitView } from './components/views/AdProfitView';
+import { PayrollView } from './components/views/PayrollView';
 import { LoginView } from './components/views/LoginView';
 import { calculateDashboardSummary, INITIAL_SUMMARY } from './utils/dashboard';
 import { getVNDateStr, getVNDayName } from './utils/dateUtils';
 import { apiService } from './services/api';
 import { Menu, X } from 'lucide-react';
+import { PayrollPeriod } from './types';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
-  const [view, setView] = useState<'dashboard' | 'staff' | 'staff_form' | 'entry' | 'shifts' | 'register_shift' | 'settings' | 'sales_history' | 'ad_profit'>('dashboard');
+  const [view, setView] = useState<'dashboard' | 'staff' | 'staff_form' | 'entry' | 'shifts' | 'register_shift' | 'settings' | 'sales_history' | 'ad_profit' | 'payroll' | 'costs'>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
@@ -31,6 +33,7 @@ export default function App() {
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [costs, setCosts] = useState<OperatingCost[]>([]);
   const [adHistory, setAdHistory] = useState<AdHistoryRecord[]>([]);
+  const [payrollPeriods, setPayrollPeriods] = useState<PayrollPeriod[]>([]);
   const [readerSchedule, setReaderSchedule] = useState<ShiftRegistration[]>([]);
   const [saleSchedule, setSaleSchedule] = useState<ShiftRegistration[]>([]);
   const [settings, setSettings] = useState<SystemSettings>({ id: 'global', is_locked: false });
@@ -128,6 +131,12 @@ export default function App() {
       setSaleSchedule(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ShiftRegistration)));
     });
     unsubscribers.push(unsubSaleShifts);
+
+    // 9. Payrolls listener
+    const unsubPayrolls = onSnapshot(query(collection(db, 'payrolls'), orderBy('created_at', 'desc')), (snapshot) => {
+      setPayrollPeriods(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PayrollPeriod)));
+    });
+    unsubscribers.push(unsubPayrolls);
 
     return () => {
       console.log("[App] Cleaning up real-time listeners...");
@@ -514,6 +523,27 @@ export default function App() {
             summary={summary || INITIAL_SUMMARY}
             adHistory={adHistory}
             fetchData={fetchData}
+          />
+        );
+      case 'payroll':
+        return (
+          <PayrollView 
+            user={user}
+            users={users}
+            sales={sales}
+            payrollPeriods={payrollPeriods}
+            adHistory={adHistory}
+            fetchData={fetchData}
+            loading={loading}
+          />
+        );
+      case 'costs':
+        return (
+          <CostsView 
+            user={user}
+            costs={costs}
+            fetchData={fetchData}
+            loading={loading}
           />
         );
       default:

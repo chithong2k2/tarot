@@ -7,6 +7,7 @@ export interface User {
   role: UserRole;
   full_name: string;
   avatar_url?: string;
+  bank_name?: string;
   bank_account?: string;
   commission_percent: number;
   status?: 'active' | 'inactive';
@@ -108,4 +109,33 @@ export interface AdHistoryRecord {
   commission: number;
   net_profit: number;
   updated_at: string;
+}
+
+export interface PayrollStaffItem {
+  user_id: string;
+  user_name: string;
+  role: UserRole;
+  bank_name?: string;
+  bank_account?: string;
+  commission_percent: number;
+  total_amount: number;
+  total_tip: number;
+  commission: number;
+  net_payout: number; // commission + (role === 'reader' ? tip : 0)
+  is_paid: boolean;
+  paid_at?: string;
+  payment_note?: string;
+}
+
+export interface PayrollPeriod {
+  id: string; // e.g. "2026-W39" or timestamp
+  title: string; // e.g. "Tuần 39 (21/09/2026 - 27/09/2026)"
+  start_date: string;
+  end_date: string;
+  total_revenue: number; // Tổng tiền khách chuyển cho shop
+  total_payout: number;  // Tổng tiền lương trả nhân viên (Hoa hồng + Tip)
+  total_ad_spend: number; // Tổng tiền chạy Ads tuần
+  owner_net_profit: number; // Lợi nhuận bạn thực nhận = total_revenue - total_payout - total_ad_spend
+  items: PayrollStaffItem[];
+  created_at: string;
 }

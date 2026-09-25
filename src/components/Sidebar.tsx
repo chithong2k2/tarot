@@ -122,6 +122,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 active={view === 'ad_profit'} 
                 onClick={() => { setView('ad_profit'); setIsSidebarOpen(false); }} 
               />
+              <SidebarItem 
+                icon={<CreditCard size={20} />} 
+                label="Bảng Lương" 
+                active={view === 'payroll'} 
+                onClick={() => { setView('payroll'); setIsSidebarOpen(false); }} 
+              />
+              <SidebarItem 
+                icon={<Receipt size={20} />} 
+                label="Chi Phí Vận Hành" 
+                active={view === 'costs'} 
+                onClick={() => { setView('costs'); setIsSidebarOpen(false); }} 
+              />
             </>
           )}
           {(user.role === 'reader' || user.role === 'sale') && (

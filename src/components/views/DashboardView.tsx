@@ -12,26 +12,42 @@ import {
   Trash2,
   FileDown,
   ChevronDown,
-  Facebook
+  Facebook,
+  BarChart2,
+  Sparkles,
+  Layers,
+  Target,
+  AlertTriangle,
+  CreditCard,
+  ArrowRight,
+  Info,
+  Search,
+  PlusCircle,
+  ChevronRight,
+  X,
+  Clock
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { 
   BarChart, 
   Bar, 
   Line,
-  ComposedChart,
+  AreaChart,
+  Area,
+  ComposedChart, 
   XAxis, 
   YAxis, 
   CartesianGrid, 
   Tooltip, 
-  ResponsiveContainer,
-  Cell
+  ResponsiveContainer, 
+  Cell,
+  ReferenceLine
 } from 'recharts';
 import { User, SaleRecord, DashboardSummary, AdHistoryRecord } from '../../types';
 import { firebaseService } from '../../services/firebaseService';
 import { StatCard, formatVND } from '../DashboardComponents';
 import { exportToExcel } from '../../utils/export';
-import { getVNDayName } from '../../utils/dateUtils';
+import { getVNDayName, getVNMonday, getVNTime } from '../../utils/dateUtils';
 
 import { ConfirmModal } from '../ConfirmModal';
 
@@ -73,6 +89,49 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [deletingSale, setDeletingSaleId] = React.useState<SaleRecord | null>(null);
   const [isReaderDropdownOpen, setIsReaderDropdownOpen] = React.useState(false);
 
+  // Chart Customization State
+  const [chartType, setChartType] = React.useState<'area' | 'bar'>('area');
+  const [showRevenue, setShowRevenue] = React.useState(true);
+  const [showProfit, setShowProfit] = React.useState(true);
+  const [showAdSpend, setShowAdSpend] = React.useState(true);
+  const [showCommission, setShowCommission] = React.useState(false);
+
+  const [searchQuery, setSearchQuery] = React.useState('');
+  const [collapsedStaff, setCollapsedStaff] = React.useState<Record<string, boolean>>({});
+
+  const toggleStaffCollapse = (staffId: string) => {
+    setCollapsedStaff(prev => ({
+      ...prev,
+      [staffId]: !prev[staffId]
+    }));
+  };
+
+  const formatSaleTime = (createdAt?: string) => {
+    if (!createdAt) return '';
+    try {
+      const d = new Date(createdAt);
+      if (isNaN(d.getTime())) return '';
+      return new Intl.DateTimeFormat('vi-VN', {
+        timeZone: 'Asia/Ho_Chi_Minh',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      }).format(d);
+    } catch {
+      return '';
+    }
+  };
+
+  const formatSaleDate = (dateStr: string) => {
+    try {
+      const d = new Date(`${dateStr}T00:00:00+07:00`);
+      if (isNaN(d.getTime())) return dateStr;
+      return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+    } catch {
+      return dateStr;
+    }
+  };
+
   const dropdownRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
@@ -87,7 +146,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   const getDayName = (dateStr: string) => {
     try {
-      // Use Vietnam timezone to ensure the day name is correct regardless of browser location
       const date = new Date(`${dateStr}T00:00:00+07:00`);
       if (isNaN(date.getTime())) return 'N/A';
       const days = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
@@ -97,34 +155,204 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     }
   };
 
+  // Generate Week Days (Thứ 2 -> Chủ nhật)
+  const weekDays = React.useMemo(() => {
+    const mon = getVNMonday();
+    const dayNames = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ nhật'];
+    const todayName = getVNDayName();
+
+    return dayNames.map((name, idx) => {
+      const d = new Date(mon);
+      d.setDate(mon.getDate() + idx);
+      const dateFormatted = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const isToday = name === todayName;
+      return {
+        key: name,
+        name,
+        dateFormatted,
+        dateStr,
+        isToday
+      };
+    });
+  }, []);
+
+  // Filtered Sales according to selectedDay
+  const filteredSalesByDay = React.useMemo(() => {
+    if (selectedDay === 'All') return sales;
+    return sales.filter(s => getDayName(s.date) === selectedDay);
+  }, [sales, selectedDay]);
+
+  // Dynamic Financial Metrics based on selectedDay
+  const currentDayStats = React.useMemo(() => {
+    if (selectedDay === 'All') {
+      const rev = summary?.totalRevenue || 0;
+      const profit = summary?.netProfit || 0;
+      const adSpend = summary?.totalAdSpend || 0;
+      const commission = (summary?.totalReaderCommission || 0) + (summary?.totalSaleCommission || 0);
+      const salesCount = sales.length;
+      const netMargin = rev > 0 ? (profit / rev) * 100 : 0;
+      const roas = adSpend > 0 ? (rev / adSpend) : null;
+      const cpa = (adSpend > 0 && salesCount > 0) ? (adSpend / salesCount) : null;
+
+      return {
+        title: 'Cả Tuần Này',
+        revenue: rev,
+        profit,
+        adSpend,
+        commission,
+        salesCount,
+        netMargin,
+        roas,
+        cpa
+      };
+    }
+
+    const dayObj = weekDays.find(w => w.name === selectedDay);
+    const dayStat = summary?.dailyStats?.find(d => d.name === selectedDay);
+    const rev = dayStat?.revenue || 0;
+    const profit = dayStat?.profit || 0;
+    const adSpend = dayStat?.adSpend || 0;
+    const commission = dayStat?.commission || 0;
+    const salesCount = filteredSalesByDay.length;
+    const netMargin = rev > 0 ? (profit / rev) * 100 : 0;
+    const roas = adSpend > 0 ? (rev / adSpend) : null;
+    const cpa = (adSpend > 0 && salesCount > 0) ? (adSpend / salesCount) : null;
+
+    return {
+      title: `${selectedDay} (${dayObj?.dateFormatted || ''})`,
+      revenue: rev,
+      profit,
+      adSpend,
+      commission,
+      salesCount,
+      netMargin,
+      roas,
+      cpa
+    };
+  }, [selectedDay, summary, sales, filteredSalesByDay, weekDays]);
+
+  // Non-manager metrics for reader / sale
+  const staffPersonalMetrics = React.useMemo(() => {
+    if (user.role === 'manager') return null;
+
+    const userSales = filteredSalesByDay;
+    const amount = userSales.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
+    const tip = userSales.reduce((sum, s) => sum + (Number(s.tip) || 0), 0);
+    const commissionPercent = user.commission_percent || 0;
+    const commission = (amount * commissionPercent) / 100;
+    const totalPayout = commission + (user.role === 'reader' ? tip : 0);
+
+    return {
+      amount,
+      tip,
+      commission,
+      totalPayout,
+      count: userSales.length
+    };
+  }, [user, filteredSalesByDay]);
+
+  // ROAS Badge Configuration
+  const roasBadge = React.useMemo(() => {
+    if (currentDayStats.roas === null) {
+      return currentDayStats.adSpend > 0 
+        ? { text: 'Chưa có đơn', variant: 'negative' as const }
+        : { text: 'Không chạy Ads', variant: 'neutral' as const };
+    }
+    if (currentDayStats.roas >= 3.0) return { text: 'Siêu Lời (≥3x)', variant: 'positive' as const };
+    if (currentDayStats.roas >= 2.0) return { text: 'Có Lãi (≥2x)', variant: 'positive' as const };
+    if (currentDayStats.roas >= 1.0) return { text: 'Hòa Vốn (1-2x)', variant: 'info' as const };
+    return { text: 'Lỗ Tiền Ads (<1x)', variant: 'negative' as const };
+  }, [currentDayStats.roas, currentDayStats.adSpend]);
+
+  // Smart Alerts
+  const smartAlerts = React.useMemo(() => {
+    const alerts: Array<{
+      id: string;
+      type: 'warning' | 'success' | 'info';
+      icon: React.ReactNode;
+      title: string;
+      message: string;
+      action?: { label: string; onClick: () => void };
+    }> = [];
+
+    if (user.role === 'manager') {
+      // 1. Alert: Ad spend burning without sales
+      if (currentDayStats.adSpend > 0 && currentDayStats.salesCount === 0) {
+        alerts.push({
+          id: 'ad-spend-no-sales',
+          type: 'warning',
+          icon: <AlertTriangle size={18} className="text-amber-600 shrink-0" />,
+          title: 'Cảnh báo chi phí Ads',
+          message: `${selectedDay === 'All' ? 'Tuần này' : selectedDay} đã chi ${formatVND(currentDayStats.adSpend)} cho Ads nhưng chưa có đơn chốt nào. Hãy kiểm tra inbox khách và nhắc ca trực!`
+        });
+      }
+
+      // 2. Alert: Exceptional ROAS
+      if (currentDayStats.roas !== null && currentDayStats.roas >= 2.5) {
+        alerts.push({
+          id: 'high-roas',
+          type: 'success',
+          icon: <Sparkles size={18} className="text-emerald-600 shrink-0" />,
+          title: 'Hiệu quả quảng cáo xuất sắc!',
+          message: `ROAS đạt ${currentDayStats.roas.toFixed(2)}x (${selectedDay === 'All' ? 'toàn tuần' : selectedDay}), doanh thu gấp ${currentDayStats.roas.toFixed(1)} lần tiền Ads. Chiến dịch đang sinh lời rất tốt!`
+        });
+      }
+
+      // 3. Alert: Missing bank accounts
+      const staffWithoutBank = users.filter(u => u.role !== 'manager' && (!u.bank_account || !u.bank_name));
+      if (staffWithoutBank.length > 0) {
+        alerts.push({
+          id: 'missing-bank',
+          type: 'info',
+          icon: <CreditCard size={18} className="text-indigo-600 shrink-0" />,
+          title: 'Thông tin VietQR nhân sự',
+          message: `Có ${staffWithoutBank.length} nhân viên (${staffWithoutBank.map(u => u.full_name).join(', ')}) chưa cập nhật STK ngân hàng.`,
+          action: {
+            label: 'Cập nhật ngay',
+            onClick: () => setView('users')
+          }
+        });
+      }
+    }
+
+    return alerts;
+  }, [user.role, currentDayStats, selectedDay, users, setView]);
+
   return (
     <motion.div 
       key="dashboard"
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -10 }}
-      className="space-y-8"
+      className="space-y-6"
     >
+      {/* Top Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">Tổng Quan Doanh Thu</h2>
-          <p className="text-slate-500">Dữ liệu tính từ Thứ 2 đến Chủ Nhật tuần này</p>
+          <div className="flex items-center space-x-2">
+            <h2 className="text-2xl font-black text-slate-900 tracking-tight">Tổng Quan Doanh Thu</h2>
+            <span className="text-xs bg-indigo-50 text-indigo-700 font-bold px-2.5 py-1 rounded-full border border-indigo-200/60">
+              {currentDayStats.title}
+            </span>
+          </div>
+          <p className="text-slate-500 text-sm mt-0.5">Dữ liệu tài chính, hiệu quả quảng cáo và hiệu suất làm việc</p>
         </div>
         {user.role === 'manager' && (
           <div className="flex items-center gap-3">
             <button 
               onClick={() => summary && exportToExcel(sales, users, summary)}
-              className="flex items-center space-x-2 bg-emerald-50 border border-emerald-100 px-4 py-2 rounded-xl text-emerald-700 hover:bg-emerald-100 transition-colors shadow-sm"
+              className="flex items-center space-x-2 bg-emerald-50 border border-emerald-100 px-4 py-2 rounded-xl text-emerald-700 hover:bg-emerald-100 transition-colors shadow-sm font-semibold text-xs cursor-pointer"
             >
-              <FileDown size={18} />
+              <FileDown size={16} />
               <span>Xuất Excel</span>
             </button>
             {!showConfirmReset ? (
               <button 
                 onClick={() => setShowConfirmReset(true)}
-                className="flex items-center space-x-2 bg-white border border-slate-200 px-4 py-2 rounded-xl text-slate-700 hover:bg-slate-50 transition-colors shadow-sm"
+                className="flex items-center space-x-2 bg-white border border-slate-200 px-4 py-2 rounded-xl text-slate-700 hover:bg-slate-50 transition-colors shadow-sm font-semibold text-xs cursor-pointer"
               >
-                <RefreshCcw size={18} />
+                <RefreshCcw size={16} />
                 <span>Reset Tuần Mới</span>
               </button>
             ) : (
@@ -145,14 +373,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       setIsResetting(false);
                     }
                   }}
-                  className="bg-red-600 text-white text-xs px-3 py-1.5 rounded-lg hover:bg-red-700 transition-colors"
+                  className="bg-red-600 text-white text-xs px-3 py-1.5 rounded-lg hover:bg-red-700 transition-colors cursor-pointer font-bold"
                 >
                   {isResetting ? '...' : 'CÓ'}
                 </button>
                 <button 
                   disabled={isResetting}
                   onClick={() => setShowConfirmReset(false)}
-                  className="bg-slate-200 text-slate-700 text-xs px-3 py-1.5 rounded-lg hover:bg-slate-300 transition-colors"
+                  className="bg-slate-200 text-slate-700 text-xs px-3 py-1.5 rounded-lg hover:bg-slate-300 transition-colors cursor-pointer font-bold"
                 >
                   HỦY
                 </button>
@@ -162,150 +390,619 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         )}
       </div>
 
+      {/* Day-by-Day Week Filter Toolbar */}
+      <div className="bg-white p-2.5 rounded-2xl border border-slate-100 card-shadow flex items-center gap-2 overflow-x-auto scrollbar-none">
+        <div className="flex items-center gap-1.5 shrink-0 px-2 text-xs font-bold text-slate-400 uppercase tracking-wider hidden sm:flex">
+          <Calendar size={14} className="text-indigo-600" />
+          <span>Lọc ngày:</span>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setSelectedDay('All')}
+          className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer flex items-center space-x-1.5 ${
+            selectedDay === 'All'
+              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200'
+              : 'bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-900 border border-slate-200/60'
+          }`}
+        >
+          <span>📅 Cả Tuần Này</span>
+        </button>
+
+        <div className="h-5 w-[1px] bg-slate-200 shrink-0 my-auto mx-0.5" />
+
+        {weekDays.map(d => {
+          const isSelected = selectedDay === d.name;
+          return (
+            <button
+              key={d.key}
+              type="button"
+              onClick={() => setSelectedDay(d.name)}
+              className={`px-3 py-2 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer flex items-center space-x-1.5 border ${
+                isSelected
+                  ? 'bg-indigo-900 border-indigo-900 text-white shadow-md shadow-indigo-950/20'
+                  : d.isToday
+                    ? 'bg-indigo-50/70 border-indigo-200 text-indigo-700 hover:bg-indigo-100'
+                    : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50'
+              }`}
+            >
+              <span>{d.name}</span>
+              <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-md ${
+                isSelected ? 'bg-indigo-800 text-indigo-100' : 'text-slate-400 bg-slate-100'
+              }`}>
+                {d.dateFormatted}
+              </span>
+              {d.isToday && (
+                <span className={`w-2 h-2 rounded-full ${isSelected ? 'bg-amber-300' : 'bg-indigo-600'} animate-pulse`} title="Hôm nay" />
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Smart Alerts Banner */}
+      {smartAlerts.length > 0 && (
+        <div className="space-y-2.5">
+          {smartAlerts.map(alert => (
+            <div 
+              key={alert.id}
+              className={`p-3.5 rounded-2xl border flex items-center justify-between gap-4 text-xs font-medium transition-all ${
+                alert.type === 'warning' 
+                  ? 'bg-amber-50/80 border-amber-200/80 text-amber-900' 
+                  : alert.type === 'success' 
+                    ? 'bg-emerald-50/80 border-emerald-200/80 text-emerald-900' 
+                    : 'bg-indigo-50/80 border-indigo-200/80 text-indigo-900'
+              }`}
+            >
+              <div className="flex items-center space-x-3">
+                <div className="p-2 rounded-xl bg-white/80 shadow-sm shrink-0">
+                  {alert.icon}
+                </div>
+                <div>
+                  <h4 className="font-bold">{alert.title}</h4>
+                  <p className="opacity-90">{alert.message}</p>
+                </div>
+              </div>
+              {alert.action && (
+                <button
+                  type="button"
+                  onClick={alert.action.onClick}
+                  className="px-3 py-1.5 bg-white rounded-lg shadow-sm font-bold text-xs hover:bg-slate-50 transition-all shrink-0 cursor-pointer flex items-center space-x-1"
+                >
+                  <span>{alert.action.label}</span>
+                  <ArrowRight size={12} />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        <StatCard 
-          title="Tổng Doanh Thu" 
-          value={formatVND(summary?.totalRevenue || 0)} 
-          icon={<TrendingUp size={24} />} 
-          color="bg-indigo-600"
-        />
-        {user.role === 'manager' && (
+        {user.role === 'manager' ? (
           <>
             <StatCard 
-              title="Tổng Hoa Hồng" 
-              value={formatVND((summary?.totalReaderCommission || 0) + (summary?.totalSaleCommission || 0))} 
-              icon={<Wallet size={24} />} 
-              color="bg-purple-600"
+              title="Doanh Thu" 
+              value={formatVND(currentDayStats.revenue)} 
+              icon={<TrendingUp size={24} />} 
+              color="bg-indigo-600"
+              badge={{
+                text: `${currentDayStats.salesCount} đơn chốt`,
+                variant: currentDayStats.salesCount > 0 ? 'positive' : 'neutral'
+              }}
+              subtitle={
+                <span>{selectedDay === 'All' ? 'Tổng doanh thu cả tuần' : `Doanh thu ngày ${selectedDay}`}</span>
+              }
             />
             <StatCard 
-              title="Chi Phí Ads" 
-              value={formatVND(summary?.totalAdSpend || 0)} 
+              title="Lợi Nhuận Bỏ Túi" 
+              value={formatVND(currentDayStats.profit)} 
+              icon={<DollarSign size={24} />} 
+              color={currentDayStats.profit >= 0 ? "bg-emerald-600" : "bg-rose-600"}
+              badge={{
+                text: `${currentDayStats.netMargin >= 0 ? '+' : ''}${currentDayStats.netMargin.toFixed(1)}% Biên LN`,
+                variant: currentDayStats.netMargin >= 0 ? 'positive' : 'negative'
+              }}
+              subtitle={
+                <span>Đã trừ hoa hồng NV & chi phí Ads</span>
+              }
+            />
+            <StatCard 
+              title="Chi Phí Ads Facebook" 
+              value={formatVND(currentDayStats.adSpend)} 
               icon={<Facebook size={24} />} 
               color="bg-blue-600"
+              badge={{
+                text: currentDayStats.revenue > 0 && currentDayStats.adSpend > 0
+                  ? `${((currentDayStats.adSpend / currentDayStats.revenue) * 100).toFixed(0)}% Doanh thu`
+                  : currentDayStats.adSpend > 0 ? 'Đang chạy' : 'Không có chi phí',
+                variant: currentDayStats.adSpend > 0 ? 'info' : 'neutral'
+              }}
+              subtitle={
+                <span>Realtime Meta Graph API</span>
+              }
             />
             <StatCard 
-              title="Lợi Nhuận Ròng" 
-              value={formatVND(summary?.netProfit || 0)} 
-              icon={<DollarSign size={24} />} 
-              color="bg-emerald-600"
+              title="Hiệu Quả Quảng Cáo" 
+              value={currentDayStats.roas !== null ? `${currentDayStats.roas.toFixed(2)}x ROAS` : (currentDayStats.adSpend > 0 ? '0.00x ROAS' : 'Chưa chạy Ads')} 
+              icon={<Target size={24} />} 
+              color="bg-purple-600"
+              badge={roasBadge}
+              subtitle={
+                currentDayStats.cpa !== null ? (
+                  <span>CPA: <strong className="text-slate-700 font-semibold">{formatVND(Math.round(currentDayStats.cpa))}</strong> / đơn</span>
+                ) : (
+                  <span>{currentDayStats.adSpend > 0 ? 'Chưa phát sinh đơn' : 'Không có chi phí Ads'}</span>
+                )
+              }
             />
           </>
-        )}
-        {user.role !== 'manager' && (
-          <StatCard 
-            title="Hoa Hồng Của Bạn" 
-            value={formatVND(user.role === 'reader' ? (summary?.totalReaderCommission || 0) : (summary?.totalSaleCommission || 0))} 
-            icon={<Wallet size={24} />} 
-            color="bg-purple-600"
-          />
+        ) : (
+          <>
+            <StatCard 
+              title="Doanh Thu Đơn Hàng" 
+              value={formatVND(staffPersonalMetrics?.amount || 0)} 
+              icon={<TrendingUp size={24} />} 
+              color="bg-indigo-600"
+              badge={{
+                text: `${staffPersonalMetrics?.count || 0} đơn`,
+                variant: (staffPersonalMetrics?.count || 0) > 0 ? 'positive' : 'neutral'
+              }}
+              subtitle={<span>{selectedDay === 'All' ? 'Tổng cả tuần này' : `Dữ liệu ngày ${selectedDay}`}</span>}
+            />
+            <StatCard 
+              title="Hoa Hồng Của Bạn" 
+              value={formatVND(staffPersonalMetrics?.commission || 0)} 
+              icon={<Wallet size={24} />} 
+              color="bg-purple-600"
+              badge={{
+                text: `${user.commission_percent || 0}%`,
+                variant: 'info'
+              }}
+              subtitle={<span>Tính theo % doanh thu gói</span>}
+            />
+            {user.role === 'reader' && (
+              <StatCard 
+                title="Tiền Tip Nhận Được" 
+                value={formatVND(staffPersonalMetrics?.tip || 0)} 
+                icon={<Sparkles size={24} />} 
+                color="bg-amber-500"
+                badge={{
+                  text: '100% về bạn',
+                  variant: 'positive'
+                }}
+                subtitle={<span>Khách hàng tip thêm</span>}
+              />
+            )}
+            <StatCard 
+              title="Tổng Thu Nhập Thực Nhận" 
+              value={formatVND(staffPersonalMetrics?.totalPayout || 0)} 
+              icon={<DollarSign size={24} />} 
+              color="bg-emerald-600"
+              badge={{
+                text: selectedDay === 'All' ? 'Tuần này' : selectedDay,
+                variant: 'positive'
+              }}
+              subtitle={<span>{user.role === 'reader' ? 'Hoa hồng + Tiền Tip' : 'Hoa hồng chốt đơn'}</span>}
+            />
+          </>
         )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Chart */}
-        <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-100 card-shadow">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-bold text-slate-900">
-              {user.role === 'manager' ? 'Biểu Đồ Doanh Thu & Lợi Nhuận' : 'Biểu Đồ Doanh Thu & Hoa Hồng'}
-            </h3>
-            <div className="flex flex-wrap items-center gap-4 text-xs font-bold">
-              <div className="flex items-center gap-1.5">
-                <div className="w-3 h-3 bg-indigo-600/60 rounded-sm"></div>
-                <span className="text-slate-500">Doanh thu</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <div className="w-3 h-3 bg-emerald-500 rounded-full"></div>
-                <span className="text-slate-500">
-                  {user.role === 'manager' ? 'Lợi nhuận' : 'Hoa hồng'}
+        {/* Modern Chart (Recharts Pro) */}
+        <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-100 card-shadow flex flex-col justify-between">
+          {/* Header & Controls */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+            <div>
+              <div className="flex items-center space-x-2">
+                <h3 className="text-lg font-bold text-slate-900">
+                  {user.role === 'manager' ? 'Biểu Đồ Tài Chính Tuần' : 'Biểu Đồ Doanh Thu & Hoa Hồng'}
+                </h3>
+                <span className="text-[10px] bg-indigo-50 text-indigo-700 font-bold px-2 py-0.5 rounded-full border border-indigo-200/50 uppercase tracking-wider">
+                  Recharts
                 </span>
               </div>
-              {user.role === 'manager' && (
-                <>
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-3 h-3 bg-rose-500 rounded-full"></div>
-                    <span className="text-slate-500">Chi phí Ads</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
-                    <span className="text-slate-500">Hoa hồng</span>
-                  </div>
-                </>
-              )}
+              <p className="text-xs text-slate-400 mt-0.5">
+                {user.role === 'manager' 
+                  ? 'Theo dõi doanh thu, chi phí Ads và lợi nhuận ròng từng ngày' 
+                  : 'Theo dõi doanh thu và thu nhập hoa hồng của bạn'}
+              </p>
+            </div>
+
+            {/* Toggle Dạng Biểu Đồ (Vùng Gradient vs Cột) */}
+            <div className="flex items-center bg-slate-100 p-1 rounded-xl text-xs font-bold self-start sm:self-auto border border-slate-200/50">
+              <button
+                type="button"
+                onClick={() => setChartType('area')}
+                className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                  chartType === 'area'
+                    ? 'bg-white text-indigo-600 shadow-sm font-black'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <TrendingUp size={13} />
+                <span>Vùng Gradient</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setChartType('bar')}
+                className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                  chartType === 'bar'
+                    ? 'bg-white text-indigo-600 shadow-sm font-black'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <BarChart2 size={13} />
+                <span>Cột So Sánh</span>
+              </button>
             </div>
           </div>
-          <div className="h-[350px] w-full">
+
+          {/* Metric Filter Pills */}
+          <div className="flex flex-wrap items-center gap-2 mb-5">
+            <button
+              type="button"
+              onClick={() => setShowRevenue(!showRevenue)}
+              className={`flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-bold transition-all border cursor-pointer ${
+                showRevenue
+                  ? 'bg-indigo-50 border-indigo-200 text-indigo-700 shadow-sm'
+                  : 'bg-slate-50 border-slate-200 text-slate-400 opacity-60'
+              }`}
+            >
+              <div className="w-2.5 h-2.5 rounded-full bg-indigo-600"></div>
+              <span>Doanh thu</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowProfit(!showProfit)}
+              className={`flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-bold transition-all border cursor-pointer ${
+                showProfit
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-700 shadow-sm'
+                  : 'bg-slate-50 border-slate-200 text-slate-400 opacity-60'
+              }`}
+            >
+              <div className="w-2.5 h-2.5 rounded-full bg-emerald-500"></div>
+              <span>{user.role === 'manager' ? 'Lợi nhuận ròng' : 'Hoa hồng'}</span>
+            </button>
+
+            {user.role === 'manager' && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setShowAdSpend(!showAdSpend)}
+                  className={`flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-bold transition-all border cursor-pointer ${
+                    showAdSpend
+                      ? 'bg-rose-50 border-rose-200 text-rose-700 shadow-sm'
+                      : 'bg-slate-50 border-slate-200 text-slate-400 opacity-60'
+                  }`}
+                >
+                  <div className="w-2.5 h-2.5 rounded-full bg-rose-500"></div>
+                  <span>Chi phí Ads FB</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowCommission(!showCommission)}
+                  className={`flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-bold transition-all border cursor-pointer ${
+                    showCommission
+                      ? 'bg-purple-50 border-purple-200 text-purple-700 shadow-sm'
+                      : 'bg-slate-50 border-slate-200 text-slate-400 opacity-60'
+                  }`}
+                >
+                  <div className="w-2.5 h-2.5 rounded-full bg-purple-500"></div>
+                  <span>Hoa hồng NV</span>
+                </button>
+              </>
+            )}
+          </div>
+
+          {/* Biểu đồ chính */}
+          <div className="h-[340px] w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={summary?.dailyStats || []}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis 
-                  dataKey="name" 
-                  axisLine={false} 
-                  tickLine={false} 
-                  tick={{ fill: '#64748b', fontSize: 12 }}
-                  dy={10}
-                />
-                <YAxis 
-                  axisLine={false} 
-                  tickLine={false} 
-                  tick={{ fill: '#64748b', fontSize: 12 }}
-                  tickFormatter={(value) => `${value / 1000}k`}
-                />
-                <Tooltip 
-                  cursor={{ fill: '#f8fafc' }}
-                  contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                  formatter={(value: number, name: string) => {
-                    const labels: Record<string, string> = {
-                      revenue: 'Doanh thu',
-                      profit: 'Lợi nhuận',
-                      adSpend: 'Chi phí Ads',
-                      commission: 'Hoa hồng'
-                    };
-                    return [formatVND(value), labels[name] || name];
-                  }}
-                />
-                <Bar dataKey="revenue" radius={[6, 6, 0, 0]}>
-                  {(summary?.dailyStats || []).map((entry, index) => {
-                    const todayName = getVNDayName();
-                    const isToday = entry.name === todayName;
-                    
-                    return (
-                      <Cell 
-                        key={`cell-${index}`} 
-                        fill={isToday ? '#4f46e5' : '#818cf8'} 
-                        fillOpacity={isToday ? 1 : 0.6}
-                      />
-                    );
-                  })}
-                </Bar>
-                <Line 
-                  type="monotone" 
-                  dataKey={user.role === 'manager' ? 'profit' : 'commission'} 
-                  stroke="#10b981" 
-                  strokeWidth={3} 
-                  dot={{ r: 4, fill: '#10b981', strokeWidth: 2, stroke: '#fff' }}
-                  activeDot={{ r: 6, strokeWidth: 0 }}
-                />
-                {user.role === 'manager' && (
-                  <>
-                    <Line 
+              {chartType === 'area' ? (
+                <AreaChart data={summary?.dailyStats || []} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#6366f1" stopOpacity={0.35}/>
+                      <stop offset="95%" stopColor="#6366f1" stopOpacity={0.0}/>
+                    </linearGradient>
+                    <linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.35}/>
+                      <stop offset="95%" stopColor="#10b981" stopOpacity={0.0}/>
+                    </linearGradient>
+                    <linearGradient id="colorAdSpend" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.25}/>
+                      <stop offset="95%" stopColor="#f43f5e" stopOpacity={0.0}/>
+                    </linearGradient>
+                    <linearGradient id="colorCommission" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#a855f7" stopOpacity={0.25}/>
+                      <stop offset="95%" stopColor="#a855f7" stopOpacity={0.0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <ReferenceLine y={0} stroke="#cbd5e1" strokeDasharray="3 3" />
+                  <XAxis 
+                    dataKey="name" 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fill: '#64748b', fontSize: 12, fontWeight: 500 }}
+                    dy={10}
+                  />
+                  <YAxis 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fill: '#64748b', fontSize: 12 }}
+                    tickFormatter={(val) => {
+                      if (val === 0) return '0';
+                      if (Math.abs(val) >= 1000000) return `${(val / 1000000).toFixed(1)}M`;
+                      return `${val / 1000}k`;
+                    }}
+                  />
+                  <Tooltip 
+                    content={({ active, payload, label }: any) => {
+                      if (active && payload && payload.length) {
+                        const isToday = label === getVNDayName();
+                        return (
+                          <div className="bg-white/95 backdrop-blur-md p-4 rounded-2xl shadow-xl border border-slate-200/80 text-xs min-w-[210px] space-y-2.5">
+                            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                              <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                                <Calendar size={13} className="text-indigo-600" />
+                                <span>{label}</span>
+                              </span>
+                              {isToday && (
+                                <span className="bg-indigo-50 text-indigo-700 font-bold px-2 py-0.5 rounded-full text-[10px] border border-indigo-200/50">
+                                  Hôm nay
+                                </span>
+                              )}
+                            </div>
+                            <div className="space-y-1.5 pt-0.5">
+                              {payload.map((entry: any, index: number) => {
+                                const labels: Record<string, { title: string; color: string }> = {
+                                  revenue: { title: 'Doanh thu', color: '#6366f1' },
+                                  profit: { title: user.role === 'manager' ? 'Lợi nhuận ròng' : 'Hoa hồng', color: '#10b981' },
+                                  adSpend: { title: 'Chi phí Ads FB', color: '#f43f5e' },
+                                  commission: { title: 'Hoa hồng NV', color: '#a855f7' }
+                                };
+                                const meta = labels[entry.dataKey] || { title: entry.name, color: entry.color || entry.fill };
+                                const isNegative = Number(entry.value) < 0;
+
+                                return (
+                                  <div key={`tooltip-${index}`} className="flex items-center justify-between gap-4">
+                                    <div className="flex items-center space-x-2">
+                                      <div 
+                                        className="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm" 
+                                        style={{ backgroundColor: meta.color }} 
+                                      />
+                                      <span className="text-slate-500 font-medium">{meta.title}:</span>
+                                    </div>
+                                    <span className={`font-bold font-mono ${
+                                      entry.dataKey === 'profit' 
+                                        ? (isNegative ? 'text-rose-600' : 'text-emerald-600') 
+                                        : 'text-slate-900'
+                                    }`}>
+                                      {formatVND(entry.value)}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
+                  />
+                  {showRevenue && (
+                    <Area 
+                      type="monotone" 
+                      dataKey="revenue" 
+                      name="Doanh thu"
+                      stroke="#6366f1" 
+                      strokeWidth={2.5}
+                      fillOpacity={1} 
+                      fill="url(#colorRevenue)" 
+                      dot={{ r: 3, fill: '#6366f1', strokeWidth: 2, stroke: '#fff' }}
+                      activeDot={{ r: 6, fill: '#6366f1', strokeWidth: 2, stroke: '#fff' }}
+                    />
+                  )}
+                  {showProfit && (
+                    <Area 
+                      type="monotone" 
+                      dataKey={user.role === 'manager' ? 'profit' : 'commission'} 
+                      name={user.role === 'manager' ? 'Lợi nhuận ròng' : 'Hoa hồng'}
+                      stroke="#10b981" 
+                      strokeWidth={2.5}
+                      fillOpacity={1} 
+                      fill="url(#colorProfit)" 
+                      dot={{ r: 3, fill: '#10b981', strokeWidth: 2, stroke: '#fff' }}
+                      activeDot={{ r: 6, fill: '#10b981', strokeWidth: 2, stroke: '#fff' }}
+                    />
+                  )}
+                  {user.role === 'manager' && showAdSpend && (
+                    <Area 
                       type="monotone" 
                       dataKey="adSpend" 
+                      name="Chi phí Ads FB"
                       stroke="#f43f5e" 
-                      strokeWidth={2} 
-                      strokeDasharray="5 5"
+                      strokeWidth={2}
+                      strokeDasharray="4 4"
+                      fillOpacity={1} 
+                      fill="url(#colorAdSpend)" 
                       dot={{ r: 3, fill: '#f43f5e' }}
+                      activeDot={{ r: 5, fill: '#f43f5e' }}
                     />
-                    <Line 
+                  )}
+                  {user.role === 'manager' && showCommission && (
+                    <Area 
                       type="monotone" 
                       dataKey="commission" 
-                      stroke="#8b5cf6" 
-                      strokeWidth={2} 
-                      dot={{ r: 3, fill: '#8b5cf6' }}
+                      name="Hoa hồng NV"
+                      stroke="#a855f7" 
+                      strokeWidth={2}
+                      strokeDasharray="3 3"
+                      fillOpacity={1} 
+                      fill="url(#colorCommission)" 
+                      dot={{ r: 3, fill: '#a855f7' }}
+                      activeDot={{ r: 5, fill: '#a855f7' }}
                     />
-                  </>
-                )}
-              </ComposedChart>
+                  )}
+                  {selectedDay !== 'All' && (
+                    <ReferenceLine 
+                      x={selectedDay} 
+                      stroke="#6366f1" 
+                      strokeDasharray="4 4" 
+                      strokeWidth={2}
+                    />
+                  )}
+                </AreaChart>
+              ) : (
+                <BarChart data={summary?.dailyStats || []} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <ReferenceLine y={0} stroke="#cbd5e1" strokeDasharray="3 3" />
+                  <XAxis 
+                    dataKey="name" 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fill: '#64748b', fontSize: 12, fontWeight: 500 }}
+                    dy={10}
+                  />
+                  <YAxis 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fill: '#64748b', fontSize: 12 }}
+                    tickFormatter={(val) => {
+                      if (val === 0) return '0';
+                      if (Math.abs(val) >= 1000000) return `${(val / 1000000).toFixed(1)}M`;
+                      return `${val / 1000}k`;
+                    }}
+                  />
+                  <Tooltip 
+                    content={({ active, payload, label }: any) => {
+                      if (active && payload && payload.length) {
+                        const isToday = label === getVNDayName();
+                        return (
+                          <div className="bg-white/95 backdrop-blur-md p-4 rounded-2xl shadow-xl border border-slate-200/80 text-xs min-w-[210px] space-y-2.5">
+                            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                              <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                                <Calendar size={13} className="text-indigo-600" />
+                                <span>{label}</span>
+                              </span>
+                              {isToday && (
+                                <span className="bg-indigo-50 text-indigo-700 font-bold px-2 py-0.5 rounded-full text-[10px] border border-indigo-200/50">
+                                  Hôm nay
+                                </span>
+                              )}
+                            </div>
+                            <div className="space-y-1.5 pt-0.5">
+                              {payload.map((entry: any, index: number) => {
+                                const labels: Record<string, { title: string; color: string }> = {
+                                  revenue: { title: 'Doanh thu', color: '#6366f1' },
+                                  profit: { title: user.role === 'manager' ? 'Lợi nhuận ròng' : 'Hoa hồng', color: '#10b981' },
+                                  adSpend: { title: 'Chi phí Ads FB', color: '#f43f5e' },
+                                  commission: { title: 'Hoa hồng NV', color: '#a855f7' }
+                                };
+                                const meta = labels[entry.dataKey] || { title: entry.name, color: entry.color || entry.fill };
+                                const isNegative = Number(entry.value) < 0;
+
+                                return (
+                                  <div key={`tooltip-${index}`} className="flex items-center justify-between gap-4">
+                                    <div className="flex items-center space-x-2">
+                                      <div 
+                                        className="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm" 
+                                        style={{ backgroundColor: meta.color }} 
+                                      />
+                                      <span className="text-slate-500 font-medium">{meta.title}:</span>
+                                    </div>
+                                    <span className={`font-bold font-mono ${
+                                      entry.dataKey === 'profit' 
+                                        ? (isNegative ? 'text-rose-600' : 'text-emerald-600') 
+                                        : 'text-slate-900'
+                                    }`}>
+                                      {formatVND(entry.value)}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
+                  />
+                  {showRevenue && (
+                    <Bar 
+                      dataKey="revenue" 
+                      name="Doanh thu"
+                      fill="#6366f1" 
+                      radius={[6, 6, 0, 0]} 
+                      maxBarSize={36}
+                    >
+                      {summary?.dailyStats?.map((entry, index) => (
+                        <Cell 
+                          key={`bar-rev-${index}`} 
+                          fill="#6366f1" 
+                          opacity={selectedDay === 'All' || entry.name === selectedDay ? 1 : 0.35} 
+                        />
+                      ))}
+                    </Bar>
+                  )}
+                  {showProfit && (
+                    <Bar 
+                      dataKey={user.role === 'manager' ? 'profit' : 'commission'} 
+                      name={user.role === 'manager' ? 'Lợi nhuận ròng' : 'Hoa hồng'}
+                      fill="#10b981" 
+                      radius={[6, 6, 0, 0]} 
+                      maxBarSize={36}
+                    >
+                      {summary?.dailyStats?.map((entry, index) => (
+                        <Cell 
+                          key={`bar-profit-${index}`} 
+                          fill="#10b981" 
+                          opacity={selectedDay === 'All' || entry.name === selectedDay ? 1 : 0.35} 
+                        />
+                      ))}
+                    </Bar>
+                  )}
+                  {user.role === 'manager' && showAdSpend && (
+                    <Bar 
+                      dataKey="adSpend" 
+                      name="Chi phí Ads FB"
+                      fill="#f43f5e" 
+                      radius={[6, 6, 0, 0]} 
+                      maxBarSize={36}
+                    >
+                      {summary?.dailyStats?.map((entry, index) => (
+                        <Cell 
+                          key={`bar-ads-${index}`} 
+                          fill="#f43f5e" 
+                          opacity={selectedDay === 'All' || entry.name === selectedDay ? 1 : 0.35} 
+                        />
+                      ))}
+                    </Bar>
+                  )}
+                  {user.role === 'manager' && showCommission && (
+                    <Bar 
+                      dataKey="commission" 
+                      name="Hoa hồng NV"
+                      fill="#a855f7" 
+                      radius={[6, 6, 0, 0]} 
+                      maxBarSize={36}
+                    >
+                      {summary?.dailyStats?.map((entry, index) => (
+                        <Cell 
+                          key={`bar-comm-${index}`} 
+                          fill="#a855f7" 
+                          opacity={selectedDay === 'All' || entry.name === selectedDay ? 1 : 0.35} 
+                        />
+                      ))}
+                    </Bar>
+                  )}
+                </BarChart>
+              )}
             </ResponsiveContainer>
           </div>
         </div>
@@ -350,12 +1047,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
       {/* Detailed Table Section */}
       <div className="space-y-6">
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-visible">
-          {/* Filters & Day Selector */}
-          <div className="p-6 border-b border-slate-100 space-y-6">
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-              <div className="flex flex-wrap items-center gap-4">
-                <h3 className="text-lg font-bold text-slate-900 uppercase mr-2">Chi tiết giao dịch</h3>
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+          {/* Table Header: Filters, Search & Action */}
+          <div className="p-5 border-b border-slate-100 space-y-4">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center space-x-2">
+                  <h3 className="text-base font-black text-slate-900 uppercase tracking-wider">Chi Tiết Giao Dịch</h3>
+                  <span className="text-[11px] bg-indigo-50 text-indigo-700 font-bold px-2.5 py-0.5 rounded-full border border-indigo-200/50">
+                    {selectedDay === 'All' ? 'Toàn Tuần' : selectedDay}
+                  </span>
+                </div>
+                
                 {user.role === 'manager' && (
                   <div className="flex items-center bg-slate-100 p-1 rounded-xl">
                     <button 
@@ -363,7 +1066,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         setStaffType('reader');
                         setSelectedReader('All');
                       }}
-                      className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${staffType === 'reader' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                      className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${staffType === 'reader' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                     >
                       Reader
                     </button>
@@ -372,24 +1075,25 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         setStaffType('sale');
                         setSelectedReader('All');
                       }}
-                      className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${staffType === 'sale' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                      className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${staffType === 'sale' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                     >
                       Sale
                     </button>
                   </div>
                 )}
+
                 {user.role === 'manager' && (
                   <div className="relative" ref={dropdownRef}>
                     <button 
                       onClick={() => setIsReaderDropdownOpen(!isReaderDropdownOpen)}
-                      className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 min-w-[200px] cursor-pointer transition-colors hover:bg-slate-100"
+                      className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-1.5 text-xs font-semibold outline-none focus:ring-2 focus:ring-indigo-500 min-w-[170px] cursor-pointer transition-colors hover:bg-slate-100"
                     >
                       <span className="truncate">
                         {selectedReader === 'All' 
                           ? `Tất cả ${staffType === 'reader' ? 'Reader' : 'Sale'}` 
                           : users.find(u => u.id === selectedReader)?.full_name || selectedReader}
                       </span>
-                      <ChevronDown size={16} className={`ml-2 text-slate-400 transition-transform ${isReaderDropdownOpen ? 'rotate-180' : ''}`} />
+                      <ChevronDown size={14} className={`ml-2 text-slate-400 transition-transform ${isReaderDropdownOpen ? 'rotate-180' : ''}`} />
                     </button>
                     
                     {isReaderDropdownOpen && (
@@ -399,7 +1103,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                             setSelectedReader('All');
                             setIsReaderDropdownOpen(false);
                           }}
-                          className={`w-full text-left px-4 py-2 text-sm transition-colors hover:bg-slate-50 ${selectedReader === 'All' ? 'text-indigo-600 font-bold bg-indigo-50/50' : 'text-slate-600'}`}
+                          className={`w-full text-left px-4 py-2 text-xs transition-colors hover:bg-slate-50 ${selectedReader === 'All' ? 'text-indigo-600 font-bold bg-indigo-50/50' : 'text-slate-600'}`}
                         >
                           Tất cả {staffType === 'reader' ? 'Reader' : 'Sale'}
                         </button>
@@ -410,7 +1114,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                               setSelectedReader(u.id);
                               setIsReaderDropdownOpen(false);
                             }}
-                            className={`w-full text-left px-4 py-2 text-sm transition-colors hover:bg-slate-50 ${selectedReader === u.id ? 'text-indigo-600 font-bold bg-indigo-50/50' : 'text-slate-600'}`}
+                            className={`w-full text-left px-4 py-2 text-xs transition-colors hover:bg-slate-50 ${selectedReader === u.id ? 'text-indigo-600 font-bold bg-indigo-50/50' : 'text-slate-600'}`}
                           >
                             {u.full_name}
                           </button>
@@ -421,21 +1125,39 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 )}
               </div>
 
-              {/* Day Selector Buttons */}
-              <div className="flex flex-wrap gap-1.5">
-                {['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ nhật'].map(day => (
+              {/* Search Bar & Quick Add Button */}
+              <div className="flex items-center gap-2.5">
+                <div className="relative flex-1 sm:w-64">
+                  <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Tìm khách, gói, nhân viên..."
+                    className="w-full pl-9 pr-8 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all"
+                  />
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+
+                {user.role === 'manager' && (
                   <button
-                    key={day}
-                    onClick={() => setSelectedDay(day)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${
-                      selectedDay === day 
-                        ? 'bg-indigo-900 border-indigo-900 text-white shadow-sm' 
-                        : 'bg-white border-slate-200 text-slate-500 hover:border-indigo-200 hover:bg-indigo-50/30 hover:text-indigo-600'
-                    }`}
+                    onClick={() => {
+                      setEditingSale(null);
+                      setView('entry');
+                    }}
+                    className="flex items-center space-x-1.5 bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shadow-sm shadow-indigo-200 cursor-pointer shrink-0"
                   >
-                    {day}
+                    <PlusCircle size={15} />
+                    <span className="hidden sm:inline">Thêm Đơn</span>
                   </button>
-                ))}
+                )}
               </div>
             </div>
           </div>
@@ -443,18 +1165,22 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm border-collapse">
               <thead>
-                <tr className="bg-slate-50/50 text-slate-400 uppercase text-[10px] tracking-wider font-bold border-b border-slate-100">
-                  <th className="px-6 py-4">{user.role === 'sale' || (user.role === 'manager' && staffType === 'sale') ? 'Reader' : 'Nhân Viên Sale'}</th>
-                  <th className="px-6 py-4">Khách Hàng</th>
-                  <th className="px-6 py-4">Gói Dịch Vụ</th>
-                  <th className="px-6 py-4 text-right">Số Tiền</th>
-                  <th className="px-6 py-4 text-right">Tiền Tip</th>
-                  {user.role === 'manager' && <th className="px-6 py-4 text-right">Thao tác</th>}
+                <tr className="bg-slate-50/60 text-slate-400 uppercase text-[10px] tracking-wider font-bold border-b border-slate-100">
+                  <th className="px-6 py-3.5">Thời Gian</th>
+                  <th className="px-6 py-3.5">Khách Hàng</th>
+                  <th className="px-6 py-3.5">Gói Dịch Vụ</th>
+                  <th className="px-6 py-3.5">Cặp Đôi Trực Ca (Sale → Reader)</th>
+                  <th className="px-6 py-3.5 text-right">Số Tiền</th>
+                  <th className="px-6 py-3.5 text-right">Tiền Tip</th>
+                  {user.role === 'manager' && <th className="px-6 py-3.5 text-right">Thao tác</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {(() => {
                   const effectiveStaffType = user.role === 'manager' ? staffType : user.role;
+                  const query = searchQuery.trim().toLowerCase();
+
+                  // Group sales by staff, with search and day filtering
                   const groupedSales = sales.reduce((acc: Record<string, SaleRecord[]>, sale) => {
                     const rawId = effectiveStaffType === 'reader' 
                       ? (sale.reader_id || (sale as any).reader_name)
@@ -470,11 +1196,25 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
                     if (selectedReader !== 'All' && sId !== selectedReader) return acc;
                     
-                    // Only group if there are sales for the selected day
-                    if (getDayName(sale.date) === selectedDay) {
-                      if (!acc[sId]) acc[sId] = [];
-                      acc[sId].push(sale);
+                    // Day match
+                    const matchDay = selectedDay === 'All' || getDayName(sale.date) === selectedDay;
+                    if (!matchDay) return acc;
+
+                    // Search match
+                    if (query) {
+                      const customer = (sale.customer_name || '').toLowerCase();
+                      const pkg = (sale.package_name || '').toLowerCase();
+                      const readerU = users.find(u => u.id === sale.reader_id);
+                      const saleU = users.find(u => u.id === sale.sale_id);
+                      const rName = (readerU?.full_name || (sale as any).reader_name || '').toLowerCase();
+                      const sName = (saleU?.full_name || (sale as any).sale_name || '').toLowerCase();
+
+                      const matches = customer.includes(query) || pkg.includes(query) || rName.includes(query) || sName.includes(query);
+                      if (!matches) return acc;
                     }
+
+                    if (!acc[sId]) acc[sId] = [];
+                    acc[sId].push(sale);
                     return acc;
                   }, {});
 
@@ -483,27 +1223,38 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   if (entries.length === 0) {
                     return (
                       <tr>
-                        <td colSpan={user.role === 'manager' ? 6 : 5} className="px-6 py-12 text-center">
+                        <td colSpan={user.role === 'manager' ? 7 : 6} className="px-6 py-12 text-center">
                           <div className="flex flex-col items-center justify-center text-slate-400">
-                            <Calendar size={48} className="mb-4 opacity-20" />
-                            <p className="font-medium">Không có giao dịch nào trong ngày {selectedDay}</p>
+                            <Calendar size={42} className="mb-3 opacity-25" />
+                            <p className="font-semibold text-slate-600 text-sm">
+                              {searchQuery 
+                                ? `Không tìm thấy giao dịch nào phù hợp với từ khóa "${searchQuery}"`
+                                : `Không có giao dịch nào ${selectedDay === 'All' ? 'trong tuần này' : `trong ngày ${selectedDay}`}`}
+                            </p>
+                            {searchQuery && (
+                              <button
+                                onClick={() => setSearchQuery('')}
+                                className="mt-2 text-xs text-indigo-600 hover:text-indigo-800 font-bold cursor-pointer"
+                              >
+                                Xóa tìm kiếm
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
                     );
                   }
 
-                  return entries.map(([staffId, staffSales]) => {
+                  return (entries as [string, SaleRecord[]][]).map(([staffId, staffSales]) => {
                     const staff = users.find(u => u.id === staffId || u.full_name === staffId);
                     const staffName = staff?.full_name || staffId || 'Không xác định';
                     const commissionPercent = staff?.commission_percent || 0;
+                    const isCollapsed = !!collapsedStaff[staffId];
 
-                    // Calculate stats for this specific staff
-                    const todayAmount = (staffSales as SaleRecord[]).reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
+                    // Subtotal stats for this staff
+                    const todayAmount = staffSales.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
                     const todayTip = (staffSales as SaleRecord[]).reduce((sum, s) => sum + (Number(s.tip) || 0), 0);
                     const todayRevenue = todayAmount + todayTip;
-                    
-                    // Reader gets % of amount. Sale gets % of amount only.
                     const todayCommission = (todayAmount * commissionPercent / 100);
 
                     // Weekly stats for this staff
@@ -520,59 +1271,132 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     const weeklyAmount = weeklySales.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
                     const weeklyTip = weeklySales.reduce((sum, s) => sum + (Number(s.tip) || 0), 0);
                     const weeklyRevenue = weeklyAmount + weeklyTip;
-                    
                     const weeklyCommission = (weeklyAmount * commissionPercent / 100);
 
                     return (
                       <React.Fragment key={staffId}>
-                        {/* Group Header Row */}
-                        <tr className="bg-slate-50 border-y border-slate-100/50">
-                          <td colSpan={user.role === 'manager' ? 6 : 5} className="px-6 py-4">
-                            <div className="flex items-center space-x-3">
-                              <div className="w-1.5 h-6 bg-indigo-600 rounded-full"></div>
-                              <div className="flex items-center bg-indigo-50 px-4 py-2 rounded-xl border border-indigo-100 shadow-sm">
-                                <span className="font-black text-indigo-900 text-[13px] uppercase tracking-widest">
-                                  {effectiveStaffType === 'reader' ? 'Reader' : 'Sale'}: {staffName}
+                        {/* Group Header Row (Collapsible Accordion) */}
+                        <tr 
+                          onClick={() => toggleStaffCollapse(staffId)}
+                          className="bg-slate-50/80 hover:bg-indigo-50/40 border-y border-slate-100 transition-colors cursor-pointer select-none"
+                        >
+                          <td colSpan={user.role === 'manager' ? 7 : 6} className="px-6 py-3.5">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center space-x-3">
+                                <div className={`p-1 rounded-lg transition-transform text-slate-400 ${isCollapsed ? '' : 'rotate-90'}`}>
+                                  <ChevronRight size={16} />
+                                </div>
+                                <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-md ${
+                                  effectiveStaffType === 'reader' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
+                                }`}>
+                                  {effectiveStaffType === 'reader' ? 'Reader' : 'Sale'}
+                                </span>
+                                <span className="font-bold text-slate-900 text-sm">
+                                  {staffName}
+                                </span>
+                                <span className="text-[11px] text-slate-400 font-medium">
+                                  ({commissionPercent}% hoa hồng)
+                                </span>
+                              </div>
+
+                              <div className="flex items-center space-x-4 text-xs">
+                                <span className="text-slate-500 font-medium">
+                                  <strong className="text-slate-800 font-bold">{staffSales.length}</strong> đơn
+                                </span>
+                                <span className="text-indigo-600 font-bold font-mono">
+                                  {formatVND(todayRevenue)}
+                                </span>
+                                <span className="text-slate-400 text-[11px]">
+                                  {isCollapsed ? 'Mở xem' : 'Thu gọn'}
                                 </span>
                               </div>
                             </div>
                           </td>
                         </tr>
+
                         {/* Data Rows */}
-                        {(staffSales as SaleRecord[]).map(s => {
-                          const otherStaffId = effectiveStaffType === 'reader' 
-                            ? (s.sale_id || (s as any).sale_name)
-                            : (s.reader_id || (s as any).reader_name);
-                          
-                          const otherStaff = users.find(u => u.id === otherStaffId || u.full_name === otherStaffId);
-                          const otherStaffName = otherStaff?.full_name || otherStaffId || 'Không xác định';
-                          
+                        {!isCollapsed && (staffSales as SaleRecord[]).map(s => {
+                          const readerStaff = users.find(u => u.id === s.reader_id || u.full_name === s.reader_id || (s as any).reader_name === u.full_name);
+                          const saleStaff = users.find(u => u.id === s.sale_id || u.full_name === s.sale_id || (s as any).sale_name === u.full_name);
+                          const readerName = readerStaff?.full_name || (s as any).reader_name || 'Chưa gán';
+                          const saleName = saleStaff?.full_name || (s as any).sale_name || 'Chưa gán';
+
+                          const dateFormatted = formatSaleDate(s.date);
+                          const timeFormatted = formatSaleTime(s.created_at);
+                          const dayOfSale = getDayName(s.date);
+
                           return (
-                            <tr key={s.id} className="group hover:bg-slate-50/40 transition-colors">
-                              <td className="px-6 py-5 text-slate-500">{otherStaffName}</td>
-                              <td className="px-6 py-5 font-semibold text-slate-800">{s.customer_name}</td>
-                              <td className="px-6 py-5 text-slate-500">{s.package_name}</td>
-                              <td className="px-6 py-5 text-right font-bold text-slate-900">{formatVND(s.amount)}</td>
-                              <td className="px-6 py-5 text-right text-emerald-600 font-bold">{formatVND(s.tip)}</td>
+                            <tr key={s.id} className="group hover:bg-slate-50/50 transition-colors border-b border-slate-50">
+                              {/* Thời gian */}
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <div className="flex flex-col">
+                                  <span className="font-bold text-xs text-slate-700">
+                                    {selectedDay === 'All' ? `${dayOfSale}, ${dateFormatted}` : dateFormatted}
+                                  </span>
+                                  {timeFormatted && (
+                                    <span className="text-[10px] text-slate-400 font-medium flex items-center gap-1 mt-0.5">
+                                      <Clock size={10} />
+                                      {timeFormatted}
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+
+                              {/* Khách hàng */}
+                              <td className="px-6 py-4 font-bold text-slate-900">
+                                {s.customer_name}
+                              </td>
+
+                              {/* Gói dịch vụ */}
+                              <td className="px-6 py-4">
+                                <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 text-xs font-medium">
+                                  {s.package_name}
+                                </span>
+                              </td>
+
+                              {/* Cặp đôi trực ca (Sale -> Reader) */}
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <div className="flex items-center space-x-1.5 text-xs">
+                                  <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 font-semibold border border-blue-100 text-[11px]" title="Sale chốt đơn">
+                                    Sale: {saleName}
+                                  </span>
+                                  <span className="text-slate-300">→</span>
+                                  <span className="px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 font-semibold border border-purple-100 text-[11px]" title="Reader đọc bài">
+                                    Reader: {readerName}
+                                  </span>
+                                </div>
+                              </td>
+
+                              {/* Số tiền */}
+                              <td className="px-6 py-4 text-right font-black font-mono text-slate-900">
+                                {formatVND(s.amount)}
+                              </td>
+
+                              {/* Tiền Tip */}
+                              <td className="px-6 py-4 text-right font-bold font-mono text-emerald-600">
+                                {s.tip > 0 ? `+${formatVND(s.tip)}` : '0đ'}
+                              </td>
+
+                              {/* Thao tác */}
                               {user.role === 'manager' && (
-                                <td className="px-6 py-5 text-right">
+                                <td className="px-6 py-4 text-right">
                                   <div className="flex items-center justify-end space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                     <button 
                                       onClick={() => {
                                         setEditingSale(s);
                                         setView('entry');
                                       }}
-                                      className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                                      className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all cursor-pointer"
                                       title="Sửa"
                                     >
-                                      <Edit2 size={16} />
+                                      <Edit2 size={15} />
                                     </button>
                                     <button 
                                       onClick={() => setDeletingSaleId(s)}
-                                      className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                                      className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all cursor-pointer"
                                       title="Xóa"
                                     >
-                                      <Trash2 size={16} />
+                                      <Trash2 size={15} />
                                     </button>
                                   </div>
                                 </td>
@@ -581,48 +1405,122 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                           );
                         })}
 
-                        {/* Summary Bar for Reader */}
-                        <tr className="bg-slate-50/30">
-                          <td colSpan={user.role === 'manager' ? 6 : 5} className="px-6 py-6 border-t border-slate-100">
-                            <div className="bg-white rounded-xl border border-slate-100 p-4 flex flex-col md:flex-row items-center justify-between gap-6">
-                              {/* Left side: Revenue text */}
-                              <div className="flex flex-wrap items-center gap-8">
-                                <div className="flex flex-col">
-                                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Doanh Thu Hôm Nay</span>
-                                  <span className="text-xl font-bold text-blue-600">{formatVND(todayRevenue)}</span>
-                                </div>
-                                <div className="flex flex-col">
-                                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Doanh Thu Tuần Này</span>
-                                  <span className="text-xl font-bold text-slate-900">{formatVND(weeklyRevenue)}</span>
-                                </div>
-                              </div>
-
-                              {/* Right side: Commission Sub-container */}
-                              <div className="flex items-center justify-between gap-6 bg-emerald-50 px-6 py-4 rounded-xl border border-emerald-100/50 w-full md:w-auto min-w-[350px]">
-                                <div className="flex flex-col">
-                                  <span className="text-[10px] font-bold text-emerald-600/70 uppercase tracking-widest mb-1">Hoa Hồng ({commissionPercent}%)</span>
-                                  <span className="text-xl font-bold text-emerald-700">{formatVND(weeklyCommission)}</span>
-                                  <span className="text-[9px] text-emerald-600/50 font-medium mt-1 text-nowrap">Hôm nay: {formatVND(todayCommission)}</span>
-                                </div>
-                                {effectiveStaffType === 'reader' && (
-                                  <div className="flex flex-col border-l border-emerald-200/50 pl-6">
-                                    <span className="text-[10px] font-bold text-emerald-600/70 uppercase tracking-widest mb-1">Tiền Tip (100%)</span>
-                                    <span className="text-xl font-bold text-emerald-700">{formatVND(weeklyTip)}</span>
-                                    <span className="text-[9px] text-emerald-600/50 font-medium mt-1 text-nowrap">Hôm nay: {formatVND(todayTip)}</span>
+                        {/* Staff Subtotal Bar */}
+                        {!isCollapsed && (
+                          <tr className="bg-slate-50/30">
+                            <td colSpan={user.role === 'manager' ? 7 : 6} className="px-6 py-4 border-t border-slate-100">
+                              <div className="bg-white rounded-xl border border-slate-100 p-3.5 flex flex-col md:flex-row items-center justify-between gap-4">
+                                <div className="flex flex-wrap items-center gap-6">
+                                  <div className="flex flex-col">
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">
+                                      Doanh Thu {selectedDay === 'All' ? 'Toàn Tuần' : selectedDay}
+                                    </span>
+                                    <span className="text-lg font-bold text-blue-600">{formatVND(todayRevenue)}</span>
                                   </div>
-                                )}
-                                <div className="bg-emerald-100 p-3 rounded-full hidden sm:block">
-                                  <Wallet className="text-emerald-600" size={24} />
+                                  {selectedDay !== 'All' && (
+                                    <div className="flex flex-col">
+                                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Doanh Thu Cả Tuần</span>
+                                      <span className="text-lg font-bold text-slate-900">{formatVND(weeklyRevenue)}</span>
+                                    </div>
+                                  )}
+                                </div>
+
+                                <div className="flex items-center justify-between gap-5 bg-emerald-50 px-5 py-3 rounded-xl border border-emerald-100/50 w-full md:w-auto">
+                                  <div className="flex flex-col">
+                                    <span className="text-[10px] font-bold text-emerald-600/70 uppercase tracking-widest mb-0.5">
+                                      Hoa Hồng ({commissionPercent}%)
+                                    </span>
+                                    <span className="text-lg font-bold text-emerald-700">{formatVND(weeklyCommission)}</span>
+                                    {selectedDay !== 'All' && (
+                                      <span className="text-[9px] text-emerald-600/50 font-medium mt-0.5">{selectedDay}: {formatVND(todayCommission)}</span>
+                                    )}
+                                  </div>
+                                  {effectiveStaffType === 'reader' && (
+                                    <div className="flex flex-col border-l border-emerald-200/50 pl-5">
+                                      <span className="text-[10px] font-bold text-emerald-600/70 uppercase tracking-widest mb-0.5">Tiền Tip (100%)</span>
+                                      <span className="text-lg font-bold text-emerald-700">{formatVND(weeklyTip)}</span>
+                                      {selectedDay !== 'All' && (
+                                        <span className="text-[9px] text-emerald-600/50 font-medium mt-0.5">{selectedDay}: {formatVND(todayTip)}</span>
+                                      )}
+                                    </div>
+                                  )}
+                                  <div className="bg-emerald-100 p-2.5 rounded-full hidden sm:block">
+                                    <Wallet className="text-emerald-600" size={20} />
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-                          </td>
-                        </tr>
+                            </td>
+                          </tr>
+                        )}
                       </React.Fragment>
                     );
                   });
                 })()}
               </tbody>
+              {/* Grand Total Footer */}
+              {(() => {
+                const effectiveStaffType = user.role === 'manager' ? staffType : user.role;
+                const query = searchQuery.trim().toLowerCase();
+
+                const filtered = sales.filter(s => {
+                  const rawId = effectiveStaffType === 'reader' 
+                    ? (s.reader_id || (s as any).reader_name)
+                    : (s.sale_id || (s as any).sale_name);
+                  if (!rawId || rawId === 'none' || rawId === 'N/A') return false;
+
+                  const staff = users.find(u => 
+                    u.id.toLowerCase() === String(rawId).toLowerCase() || 
+                    u.full_name.toLowerCase() === String(rawId).toLowerCase()
+                  );
+                  const sId = staff?.id || rawId;
+                  if (selectedReader !== 'All' && sId !== selectedReader) return false;
+
+                  const matchDay = selectedDay === 'All' || getDayName(s.date) === selectedDay;
+                  if (!matchDay) return false;
+
+                  if (query) {
+                    const customer = (s.customer_name || '').toLowerCase();
+                    const pkg = (s.package_name || '').toLowerCase();
+                    const readerU = users.find(u => u.id === s.reader_id);
+                    const saleU = users.find(u => u.id === s.sale_id);
+                    const rName = (readerU?.full_name || (s as any).reader_name || '').toLowerCase();
+                    const sName = (saleU?.full_name || (s as any).sale_name || '').toLowerCase();
+                    return customer.includes(query) || pkg.includes(query) || rName.includes(query) || sName.includes(query);
+                  }
+                  return true;
+                });
+
+                if (filtered.length === 0) return null;
+
+                const totalAmount = filtered.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
+                const totalTip = filtered.reduce((sum, s) => sum + (Number(s.tip) || 0), 0);
+
+                return (
+                  <tfoot>
+                    <tr className="bg-slate-100/90 font-bold border-t-2 border-slate-200 text-slate-800 text-xs">
+                      <td className="px-6 py-4">
+                        <span className="text-[11px] font-black uppercase text-slate-700">Tổng Toàn Bảng</span>
+                      </td>
+                      <td className="px-6 py-4 text-indigo-700 font-bold">
+                        {filtered.length} đơn chốt
+                      </td>
+                      <td className="px-6 py-4 text-slate-500 text-[11px]">
+                        {searchQuery ? `Khớp với "${searchQuery}"` : ''}
+                      </td>
+                      <td className="px-6 py-4 text-slate-500 text-[11px]">
+                        {selectedDay === 'All' ? 'Tất cả các ngày' : selectedDay}
+                      </td>
+                      <td className="px-6 py-4 text-right font-black font-mono text-sm text-slate-900">
+                        {formatVND(totalAmount)}
+                      </td>
+                      <td className="px-6 py-4 text-right font-black font-mono text-sm text-emerald-600">
+                        {formatVND(totalTip)}
+                      </td>
+                      {user.role === 'manager' && <td className="px-6 py-4"></td>}
+                    </tr>
+                  </tfoot>
+                );
+              })()}
             </table>
           </div>
         </div>

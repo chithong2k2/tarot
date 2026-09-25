@@ -50,6 +50,9 @@ export const calculateDashboardSummary = (
     }
   };
 
+  const startOfWeek = getVNMonday();
+  startOfWeek.setHours(0, 0, 0, 0);
+
   operatingCosts.forEach(c => {
     const recordDate = new Date(`${c.date}T00:00:00+07:00`);
     if (recordDate < startOfWeek) return;
@@ -61,9 +64,6 @@ export const calculateDashboardSummary = (
       expensesByDay[dayName] += amount;
     }
   });
-
-  const startOfWeek = getVNMonday();
-  startOfWeek.setHours(0, 0, 0, 0);
 
   adHistory.forEach(h => {
     // Use Vietnam timezone for comparison
