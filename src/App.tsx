@@ -504,8 +504,10 @@ export default function App() {
             saleForm={saleForm} setSaleForm={setSaleForm}
             handleSaleSubmit={handleSaleSubmit}
             users={users}
+            sales={sales}
             fetchData={fetchData}
             setView={setView} loading={loading}
+            systemSettings={settings}
           />
         );
       case 'shifts':
