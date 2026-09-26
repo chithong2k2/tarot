@@ -87,6 +87,7 @@ export const SaleEntryView: React.FC<SaleEntryViewProps> = ({
 }) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [saleToDelete, setSaleToDelete] = useState<SaleRecord | null>(null);
+  const [mobileTab, setMobileTab] = useState<'form' | 'recent'>('form');
   const [quickInput, setQuickInput] = useState('Chu Khánh 169k Giang, Thông');
   const [saveAndContinueLoading, setSaveAndContinueLoading] = useState(false);
   const customerInputRef = useRef<HTMLInputElement>(null);
@@ -211,6 +212,7 @@ export const SaleEntryView: React.FC<SaleEntryViewProps> = ({
   // Start editing an order from the recent list
   const handleStartEditSale = (sale: SaleRecord) => {
     setEditingSale(sale);
+    setMobileTab('form'); // Switch to form tab on mobile
     // Find matching reader & sale in users list
     let rId = sale.reader_id || '';
     if (!userMap.has(rId)) {
@@ -522,13 +524,48 @@ export const SaleEntryView: React.FC<SaleEntryViewProps> = ({
         </div>
       </div>
 
+      {/* Mobile Tab Switcher (Visible only on mobile / tablets < lg) */}
+      <div className="lg:hidden flex items-center bg-slate-200/70 p-1 rounded-2xl gap-1 shrink-0">
+        <button
+          type="button"
+          onClick={() => setMobileTab('form')}
+          className={`flex-1 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+            mobileTab === 'form' 
+              ? 'bg-white text-[#6d28d9] shadow-xs' 
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <Zap size={13} className={mobileTab === 'form' ? 'fill-[#6d28d9] text-[#6d28d9]' : ''} />
+          <span>Nhập đơn</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setMobileTab('recent')}
+          className={`flex-1 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+            mobileTab === 'recent' 
+              ? 'bg-white text-[#6d28d9] shadow-xs' 
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <span>Đơn vừa nhập</span>
+          <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+            mobileTab === 'recent' ? 'bg-[#f5f3ff] text-[#6d28d9]' : 'bg-slate-300 text-slate-700'
+          }`}>
+            {sessionSales.length}
+          </span>
+        </button>
+      </div>
+
       {/* 2. Main Layout (Equal Height 2 Columns with Internal Scrolling fitting device screen) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch flex-1 min-h-0 overflow-hidden">
         
         {/* ============================================================
             LEFT COLUMN (lg:col-span-8): Form Card
         ============================================================ */}
-        <div className="lg:col-span-8 bg-white rounded-3xl border border-slate-100 shadow-sm p-5 sm:p-6 flex flex-col justify-between h-full min-h-0 overflow-hidden">
+        <div className={`lg:col-span-8 bg-white rounded-3xl border border-slate-100 shadow-sm p-4 sm:p-6 flex-col justify-between h-full min-h-0 overflow-hidden ${
+          mobileTab === 'form' ? 'flex' : 'hidden lg:flex'
+        }`}>
           
           <form onSubmit={handleSaveAndContinue} className="flex flex-col h-full min-h-0 justify-between overflow-hidden">
             {/* Scrollable form body */}
@@ -561,7 +598,7 @@ export const SaleEntryView: React.FC<SaleEntryViewProps> = ({
                   <button 
                     type="button"
                     onClick={() => parseQuickText(quickInput, true)}
-                    className="px-6 py-2.5 rounded-xl bg-[#6d28d9] hover:bg-[#5b21b6] text-white font-bold text-sm shadow-sm transition-colors cursor-pointer shrink-0"
+                    className="px-5 sm:px-6 py-2.5 rounded-xl bg-[#6d28d9] hover:bg-[#5b21b6] text-white font-bold text-sm shadow-sm transition-colors cursor-pointer shrink-0"
                   >
                     Phân tích
                   </button>
@@ -753,9 +790,9 @@ export const SaleEntryView: React.FC<SaleEntryViewProps> = ({
             </div>
 
             {/* Bottom Actions Row - Fixed at card bottom */}
-            <div className="pt-3.5 border-t border-slate-100 flex items-center justify-between shrink-0 mt-3 bg-white">
-              {/* Left: Keyboard shortcut */}
-              <div className="flex items-center gap-1.5 text-xs text-slate-400 font-medium">
+            <div className="pt-3 border-t border-slate-100 flex items-center justify-between shrink-0 bg-white mt-2">
+              {/* Left: Keyboard shortcut (Desktop only) */}
+              <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-400 font-medium">
                 <kbd className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-500 font-mono text-[11px]">Ctrl</kbd>
                 <span>+</span>
                 <kbd className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-500 font-mono text-[11px]">Enter</kbd>
@@ -763,7 +800,7 @@ export const SaleEntryView: React.FC<SaleEntryViewProps> = ({
               </div>
 
               {/* Right: Actions */}
-              <div className="flex items-center gap-4">
+              <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto">
                 {editingSale ? (
                   <button 
                     type="button"
@@ -785,7 +822,7 @@ export const SaleEntryView: React.FC<SaleEntryViewProps> = ({
                 <button 
                   type="submit"
                   disabled={loading || saveAndContinueLoading}
-                  className="px-6 py-2.5 rounded-xl bg-[#6d28d9] hover:bg-[#5b21b6] text-white font-bold text-sm shadow-md shadow-purple-100 transition-all cursor-pointer flex items-center gap-2 disabled:opacity-50"
+                  className="px-5 sm:px-6 py-2.5 rounded-xl bg-[#6d28d9] hover:bg-[#5b21b6] text-white font-bold text-sm shadow-md shadow-purple-100 transition-all cursor-pointer flex items-center gap-2 disabled:opacity-50"
                 >
                   {saveAndContinueLoading ? <RefreshCw size={14} className="animate-spin" /> : null}
                   <span>{editingSale ? 'Cập nhật đơn' : 'Lưu & nhập tiếp'}</span>
@@ -798,7 +835,9 @@ export const SaleEntryView: React.FC<SaleEntryViewProps> = ({
         {/* ============================================================
             RIGHT COLUMN (lg:col-span-4): The "ĐƠN VỪA NHẬP" Card
         ============================================================ */}
-        <div className="lg:col-span-4 bg-white rounded-3xl border border-slate-100 shadow-sm p-5 sm:p-6 flex flex-col h-full min-h-0 overflow-hidden">
+        <div className={`lg:col-span-4 bg-white rounded-3xl border border-slate-100 shadow-sm p-4 sm:p-6 flex-col h-full min-h-0 overflow-hidden ${
+          mobileTab === 'recent' ? 'flex' : 'hidden lg:flex'
+        }`}>
           {/* Top stats summary */}
           <div className="shrink-0 space-y-3.5 pb-3.5 border-b border-slate-100">
             <div className="flex items-center justify-between">
