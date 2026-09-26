@@ -12,8 +12,7 @@ import {
   Receipt,
   Settings,
   X,
-  CreditCard,
-  Facebook
+  CreditCard
 } from 'lucide-react';
 import { User } from '../types';
 
@@ -115,12 +114,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 label="Lịch Sử Giao Dịch" 
                 active={view === 'sales_history'} 
                 onClick={() => { setView('sales_history'); setIsSidebarOpen(false); }} 
-              />
-              <SidebarItem 
-                icon={<Facebook size={20} />} 
-                label="Lợi Nhuận Ads" 
-                active={view === 'ad_profit'} 
-                onClick={() => { setView('ad_profit'); setIsSidebarOpen(false); }} 
               />
               <SidebarItem 
                 icon={<CreditCard size={20} />} 

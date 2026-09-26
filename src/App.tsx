@@ -12,7 +12,6 @@ import { ShiftView } from './components/views/ShiftView';
 import { CostsView } from './components/views/CostsView';
 import { SettingsView } from './components/views/SettingsView';
 import { SalesHistoryView } from './components/views/SalesHistoryView';
-import { AdProfitView } from './components/views/AdProfitView';
 import { PayrollView } from './components/views/PayrollView';
 import { LoginView } from './components/views/LoginView';
 import { calculateDashboardSummary, INITIAL_SUMMARY } from './utils/dashboard';
@@ -23,7 +22,7 @@ import { PayrollPeriod } from './types';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
-  const [view, setView] = useState<'dashboard' | 'staff' | 'staff_form' | 'entry' | 'shifts' | 'register_shift' | 'settings' | 'sales_history' | 'ad_profit' | 'payroll' | 'costs'>('dashboard');
+  const [view, setView] = useState<'dashboard' | 'staff' | 'staff_form' | 'entry' | 'shifts' | 'register_shift' | 'settings' | 'sales_history' | 'payroll' | 'costs'>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
@@ -542,14 +541,6 @@ export default function App() {
             fetchData={fetchData}
             setEditingSale={setEditingSale}
             setView={setView}
-          />
-        );
-      case 'ad_profit':
-        return (
-          <AdProfitView 
-            summary={summary || INITIAL_SUMMARY}
-            adHistory={adHistory}
-            fetchData={fetchData}
           />
         );
       case 'payroll':
