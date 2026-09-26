@@ -557,13 +557,13 @@ export const SaleEntryView: React.FC<SaleEntryViewProps> = ({
         </button>
       </div>
 
-      {/* 2. Main Layout (Equal Height 2 Columns with Internal Scrolling fitting device screen) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch flex-1 min-h-0 overflow-hidden">
+      {/* 2. Main Layout (Equal Height 2 Columns with 6:4 ratio and Internal Scrolling) */}
+      <div className="grid grid-cols-1 lg:grid-cols-10 gap-5 items-stretch flex-1 min-h-0 overflow-hidden">
         
         {/* ============================================================
-            LEFT COLUMN (lg:col-span-8): Form Card
+            LEFT COLUMN (lg:col-span-6): Form Card (60%)
         ============================================================ */}
-        <div className={`lg:col-span-8 bg-white rounded-3xl border border-slate-100 shadow-sm p-4 sm:p-6 flex-col justify-between h-full min-h-0 overflow-hidden ${
+        <div className={`lg:col-span-6 bg-white rounded-3xl border border-slate-100 shadow-sm p-4 sm:p-6 flex-col justify-between h-full min-h-0 overflow-hidden ${
           mobileTab === 'form' ? 'flex' : 'hidden lg:flex'
         }`}>
           
