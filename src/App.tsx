@@ -495,6 +495,7 @@ export default function App() {
             userForm={userForm} setUserForm={setUserForm}
             handleUserSubmit={handleUserSubmit} handleUserDelete={handleUserDelete}
             loading={loading}
+            sales={sales}
           />
         );
       case 'entry':
