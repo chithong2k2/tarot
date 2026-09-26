@@ -299,7 +299,7 @@ async function startServer() {
         const ai = new GoogleGenAI({ apiKey: geminiKey });
         
         // Try candidate models in order of best vision performance & availability
-        const candidateModels = ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro'];
+        const candidateModels = ['gemini-3.8-flash', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-2.5-flash', 'gemini-1.5-pro'];
         let response: any = null;
         let lastErr: any = null;
 
