@@ -218,17 +218,18 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       });
-      const data = await res.json();
-      if (data.success) {
+      const data = await res.json().catch(() => null);
+      if (res.ok && data?.success) {
         setSyncMessage(data.message || 'Đã đồng bộ tiền Ads hôm nay từ Facebook thành công!');
         await fetchData();
         setTimeout(() => setSyncMessage(null), 5000);
       } else {
-        alert(data.message || 'Không thể đồng bộ Ads từ Facebook.');
+        const errorMsg = data?.message || data?.error || `Máy chủ trả về mã lỗi ${res.status}`;
+        alert(`Không thể đồng bộ Ads: ${errorMsg}`);
       }
     } catch (err: any) {
-      console.error(err);
-      alert('Lỗi kết nối tới máy chủ đồng bộ Ads.');
+      console.error("[FB Sync Error]", err);
+      alert(`Lỗi kết nối tới máy chủ đồng bộ Ads: ${err?.message || 'Không thể kết nối đến máy chủ'}. Hãy kiểm tra server Node.js đang chạy trên cổng 3000.`);
     } finally {
       setIsSyncingAds(false);
     }

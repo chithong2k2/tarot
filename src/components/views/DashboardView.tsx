@@ -5,6 +5,7 @@ import {
   Receipt, 
   Wallet, 
   RefreshCcw, 
+  RefreshCw,
   Trophy,
   Calendar,
   User as UserIcon,
@@ -98,6 +99,33 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   const [searchQuery, setSearchQuery] = React.useState('');
   const [collapsedStaff, setCollapsedStaff] = React.useState<Record<string, boolean>>({});
+  const [isSyncingAds, setIsSyncingAds] = React.useState(false);
+  const [syncAdsSuccess, setSyncAdsSuccess] = React.useState<string | null>(null);
+
+  const handleSyncFbAds = async () => {
+    try {
+      setIsSyncingAds(true);
+      setSyncAdsSuccess(null);
+      const res = await fetch('/api/sync-fb-ads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const data = await res.json().catch(() => null);
+      if (res.ok && data?.success) {
+        setSyncAdsSuccess('Đã cập nhật Ads realtime!');
+        fetchData();
+        setTimeout(() => setSyncAdsSuccess(null), 4000);
+      } else {
+        const errorMsg = data?.message || data?.error || `Mã lỗi ${res.status}`;
+        alert(`Không thể đồng bộ Ads: ${errorMsg}`);
+      }
+    } catch (err: any) {
+      console.error("[FB Sync Error]", err);
+      alert(`Lỗi kết nối tới máy chủ đồng bộ Ads: ${err?.message || 'Không thể kết nối'}. Vui lòng đảm bảo server Node.js đang chạy trên cổng 3000.`);
+    } finally {
+      setIsSyncingAds(false);
+    }
+  };
 
   const toggleStaffCollapse = (staffId: string) => {
     setCollapsedStaff(prev => ({
@@ -339,12 +367,21 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <p className="text-slate-500 text-sm mt-0.5">Dữ liệu tài chính, hiệu quả quảng cáo và hiệu suất làm việc</p>
         </div>
         {user.role === 'manager' && (
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
+            <button 
+              onClick={handleSyncFbAds}
+              disabled={isSyncingAds}
+              className="flex items-center space-x-1.5 bg-blue-50 border border-blue-200 px-3.5 py-2 rounded-xl text-blue-700 hover:bg-blue-100 transition-colors shadow-sm font-semibold text-xs cursor-pointer disabled:opacity-60"
+              title="Đồng bộ chi phí quảng cáo realtime từ Meta Graph API"
+            >
+              <RefreshCw size={14} className={isSyncingAds ? 'animate-spin' : ''} />
+              <span>{isSyncingAds ? 'Đang đồng bộ...' : (syncAdsSuccess || 'Đồng Bộ Ads')}</span>
+            </button>
             <button 
               onClick={() => summary && exportToExcel(sales, users, summary)}
-              className="flex items-center space-x-2 bg-emerald-50 border border-emerald-100 px-4 py-2 rounded-xl text-emerald-700 hover:bg-emerald-100 transition-colors shadow-sm font-semibold text-xs cursor-pointer"
+              className="flex items-center space-x-1.5 bg-emerald-50 border border-emerald-100 px-3.5 py-2 rounded-xl text-emerald-700 hover:bg-emerald-100 transition-colors shadow-sm font-semibold text-xs cursor-pointer"
             >
-              <FileDown size={16} />
+              <FileDown size={15} />
               <span>Xuất Excel</span>
             </button>
             {!showConfirmReset ? (
