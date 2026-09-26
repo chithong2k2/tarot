@@ -34,7 +34,8 @@ import {
   Trash2,
   Edit2,
   RotateCcw,
-  Package as PackageIcon
+  Package as PackageIcon,
+  Bell
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { User, SystemSettings, PackageOption } from '../../types';
@@ -60,7 +61,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onSyncToSheets
 }) => {
   // Navigation tabs
-  const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'admin' | 'packages'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'admin' | 'packages' | 'notifications'>('profile');
 
   // Packages Management States
   const [packagesList, setPackagesList] = useState<PackageOption[]>(
@@ -193,14 +194,43 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     }
   }, [systemSettings]);
 
-  // Quick preset avatars
-  const avatarOptions = [
-    'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix',
-    'https://api.dicebear.com/7.x/avataaars/svg?seed=Aneka',
-    'https://api.dicebear.com/7.x/avataaars/svg?seed=Jasper',
-    'https://api.dicebear.com/7.x/avataaars/svg?seed=Milo',
-    'https://api.dicebear.com/7.x/avataaars/svg?seed=Luna',
-    'https://api.dicebear.com/7.x/avataaars/svg?seed=Oliver',
+  // Quick preset avatars (matching screenshot AD, MT, TH, LN, QV)
+  const avatarPresets = [
+    { 
+      label: 'AD', 
+      bg: 'bg-amber-100', 
+      text: 'text-amber-900', 
+      border: 'border-amber-300',
+      url: 'https://api.dicebear.com/7.x/initials/svg?seed=AD&backgroundColor=fbbf24&textColor=78350f'
+    },
+    { 
+      label: 'MT', 
+      bg: 'bg-purple-100', 
+      text: 'text-purple-900', 
+      border: 'border-purple-300',
+      url: 'https://api.dicebear.com/7.x/initials/svg?seed=MT&backgroundColor=c084fc&textColor=581c87'
+    },
+    { 
+      label: 'TH', 
+      bg: 'bg-emerald-100', 
+      text: 'text-emerald-900', 
+      border: 'border-emerald-300',
+      url: 'https://api.dicebear.com/7.x/initials/svg?seed=TH&backgroundColor=6ee7b7&textColor=064e3b'
+    },
+    { 
+      label: 'LN', 
+      bg: 'bg-pink-100', 
+      text: 'text-pink-900', 
+      border: 'border-pink-300',
+      url: 'https://api.dicebear.com/7.x/initials/svg?seed=LN&backgroundColor=f9a8d4&textColor=831843'
+    },
+    { 
+      label: 'QV', 
+      bg: 'bg-sky-100', 
+      text: 'text-sky-900', 
+      border: 'border-sky-300',
+      url: 'https://api.dicebear.com/7.x/initials/svg?seed=QV&backgroundColor=7dd3fc&textColor=0c4a6e'
+    },
   ];
 
   // Helper to get bank code for VietQR
@@ -789,29 +819,35 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     <motion.div 
       initial={{ opacity: 0, y: 15 }}
       animate={{ opacity: 1, y: 0 }}
-      className="max-w-5xl mx-auto space-y-6 pb-12"
+      className="w-full space-y-6 pb-12"
     >
       {/* Top Banner Card */}
-      <div className="bg-gradient-to-r from-indigo-700 via-indigo-600 to-purple-700 rounded-3xl p-6 sm:p-8 text-white shadow-xl relative overflow-hidden">
+      <div className="bg-gradient-to-r from-purple-800 via-purple-700 to-indigo-800 rounded-3xl p-6 sm:p-7 text-white shadow-xl relative overflow-hidden">
         <div className="absolute right-0 top-0 translate-x-10 -translate-y-10 w-64 h-64 bg-white/10 rounded-full blur-2xl pointer-events-none" />
         <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-6">
           <div className="flex items-center space-x-4">
-            <div className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-2xl overflow-hidden border-2 border-white/30 shadow-md bg-white/20 shrink-0">
-              <img 
-                src={formData.avatar_url || 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix'} 
-                alt="Avatar" 
-                className="w-full h-full object-cover" 
-                referrerPolicy="no-referrer" 
-              />
+            <div className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-2xl overflow-hidden border-2 border-white/20 shadow-md bg-amber-400 text-amber-950 font-black flex items-center justify-center shrink-0">
+              {formData.avatar_url && formData.avatar_url.startsWith('data:image') ? (
+                <img 
+                  src={formData.avatar_url} 
+                  alt="Avatar" 
+                  className="w-full h-full object-cover" 
+                  referrerPolicy="no-referrer" 
+                />
+              ) : (
+                <span className="text-2xl sm:text-3xl font-black tracking-tight">
+                  {user.full_name?.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase() || 'AD'}
+                </span>
+              )}
             </div>
             <div>
               <div className="flex items-center gap-2.5 flex-wrap">
                 <h1 className="text-2xl sm:text-3xl font-black tracking-tight">{user.full_name}</h1>
-                <span className={`px-3 py-1 rounded-full text-xs font-bold shadow-sm ${roleLabels[user.role]?.color || 'bg-slate-700'}`}>
+                <span className="px-3 py-1 rounded-full text-xs font-black bg-amber-400 text-amber-950 shadow-sm">
                   {roleLabels[user.role]?.title || user.role}
                 </span>
               </div>
-              <p className="text-indigo-100 text-sm mt-1 flex items-center gap-2">
+              <p className="text-purple-100 text-sm mt-1 flex items-center gap-2">
                 <span>@{user.username}</span>
                 <span>•</span>
                 <span>Hoa hồng: <strong>{user.commission_percent || 0}%</strong></span>
@@ -820,7 +856,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
 
           <div className="flex items-center gap-2 self-start sm:self-center">
-            <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold bg-white/15 backdrop-blur-md border border-white/20 text-white shadow-sm">
+            <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold bg-white/15 backdrop-blur-md border border-white/20 text-white shadow-sm">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
               <span>Đang hoạt động</span>
             </span>
@@ -833,42 +869,44 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         <button
           type="button"
           onClick={() => setActiveTab('profile')}
-          className={`px-5 py-3 rounded-xl text-sm font-bold transition-all flex items-center gap-2.5 whitespace-nowrap shrink-0 ${
+          className={`px-5 py-3 rounded-xl text-sm font-bold transition-all flex items-center gap-2.5 whitespace-nowrap shrink-0 cursor-pointer ${
             activeTab === 'profile' 
-              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100' 
+              ? 'bg-purple-600 text-white shadow-md shadow-purple-200' 
               : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
           }`}
         >
           <UserIcon size={18} />
-          <span>Hồ Sơ & VietQR Cá Nhân</span>
+          <span>Hồ Sơ & VietQR</span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTab('security')}
-          className={`px-5 py-3 rounded-xl text-sm font-bold transition-all flex items-center gap-2.5 whitespace-nowrap shrink-0 ${
+          className={`px-5 py-3 rounded-xl text-sm font-bold transition-all flex items-center gap-2.5 whitespace-nowrap shrink-0 cursor-pointer ${
             activeTab === 'security' 
-              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100' 
+              ? 'bg-purple-600 text-white shadow-md shadow-purple-200' 
               : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
           }`}
         >
           <Shield size={18} />
-          <span>Bảo Mật & Chế Độ Riêng Tư</span>
+          <span>Bảo Mật</span>
         </button>
 
         {user.role === 'manager' && (
           <button
             type="button"
             onClick={() => setActiveTab('admin')}
-            className={`px-5 py-3 rounded-xl text-sm font-bold transition-all flex items-center gap-2.5 whitespace-nowrap shrink-0 ${
+            className={`px-5 py-3 rounded-xl text-sm font-bold transition-all flex items-center gap-2.5 whitespace-nowrap shrink-0 cursor-pointer ${
               activeTab === 'admin' 
-                ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-md shadow-amber-200' 
-                : 'text-amber-800 hover:text-amber-900 hover:bg-amber-50'
+                ? 'bg-purple-600 text-white shadow-md shadow-purple-200' 
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
             }`}
           >
             <Sliders size={18} />
-            <span>Cấu Hình Quản Trị Hệ Thống</span>
-            <span className="px-2 py-0.5 rounded-full text-[10px] bg-white/20 text-white font-extrabold">
+            <span>Cấu Hình Hệ Thống</span>
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+              activeTab === 'admin' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+            }`}>
               Admin
             </span>
           </button>
@@ -878,14 +916,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab('packages')}
-            className={`px-5 py-3 rounded-xl text-sm font-bold transition-all flex items-center gap-2.5 whitespace-nowrap shrink-0 ${
+            className={`px-5 py-3 rounded-xl text-sm font-bold transition-all flex items-center gap-2.5 whitespace-nowrap shrink-0 cursor-pointer ${
               activeTab === 'packages' 
                 ? 'bg-purple-600 text-white shadow-md shadow-purple-200' 
-                : 'text-purple-800 hover:text-purple-900 hover:bg-purple-50'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
             }`}
           >
             <Sparkles size={18} />
-            <span>Bảng Giá Gói Dịch Vụ</span>
+            <span>Bảng Giá Dịch Vụ</span>
             <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
               activeTab === 'packages' ? 'bg-white/25 text-white' : 'bg-purple-100 text-purple-700'
             }`}>
@@ -893,6 +931,19 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </span>
           </button>
         )}
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('notifications')}
+          className={`px-5 py-3 rounded-xl text-sm font-bold transition-all flex items-center gap-2.5 whitespace-nowrap shrink-0 cursor-pointer ${
+            activeTab === 'notifications' 
+              ? 'bg-purple-600 text-white shadow-md shadow-purple-200' 
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+          }`}
+        >
+          <Bell size={18} />
+          <span>Thông Báo</span>
+        </button>
       </div>
 
       {/* Global Alerts */}
@@ -912,7 +963,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               {message.type === 'success' ? <CheckCircle2 size={20} className="text-emerald-600" /> : <AlertCircle size={20} className="text-red-600" />}
               <span className="font-semibold text-sm">{message.text}</span>
             </div>
-            <button onClick={() => setMessage(null)} className="text-slate-400 hover:text-slate-600">
+            <button onClick={() => setMessage(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer">
               <X size={18} />
             </button>
           </motion.div>
@@ -922,218 +973,227 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       {/* ==================== TAB 1: PROFILE & VIETQR ==================== */}
       {activeTab === 'profile' && (
         <form onSubmit={handleProfileSubmit} className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            {/* Left Form: Profile info */}
-            <div className="lg:col-span-7 bg-white rounded-3xl p-6 sm:p-8 border border-slate-100 shadow-sm space-y-6">
-              <div>
-                <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                  <UserIcon size={20} className="text-indigo-600" />
-                  <span>Thông Tin Cá Nhân & Tài Khoản</span>
-                </h3>
-                <p className="text-slate-400 text-xs mt-1">Cập nhật họ tên, ảnh đại diện và phong cách làm việc</p>
-              </div>
-
-              {/* Avatar Selector */}
-              <div className="space-y-3">
-                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider">Ảnh Đại Diện</label>
-                <div className="flex flex-wrap items-center gap-3">
-                  {avatarOptions.map((url) => (
-                    <button
-                      key={url}
-                      type="button"
-                      onClick={() => setFormData({ ...formData, avatar_url: url })}
-                      className={`relative w-12 h-12 rounded-xl overflow-hidden border-2 transition-all ${
-                        formData.avatar_url === url ? 'border-indigo-600 ring-2 ring-indigo-200 scale-105' : 'border-slate-100 hover:border-indigo-200'
-                      }`}
-                    >
-                      <img src={url} alt="Avatar" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                      {formData.avatar_url === url && (
-                        <div className="absolute inset-0 bg-indigo-600/30 flex items-center justify-center">
-                          <Check size={16} className="text-white" />
-                        </div>
-                      )}
-                    </button>
-                  ))}
-                  <label className="w-12 h-12 rounded-xl border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400 hover:border-indigo-500 hover:text-indigo-600 cursor-pointer transition-all">
-                    <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
-                    <Camera size={18} />
-                  </label>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">Họ và Tên</label>
-                  <input 
-                    type="text" 
-                    required
-                    value={formData.full_name}
-                    onChange={e => {
-                      const val = e.target.value;
-                      setFormData({ 
-                        ...formData, 
-                        full_name: val,
-                        bank_account_name: formData.bank_account_name || formatAccountName(val)
-                      });
-                    }}
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-medium"
-                    placeholder="Nhập họ và tên đầy đủ"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">Tên Đăng Nhập</label>
-                  <input 
-                    type="text" 
-                    required
-                    value={formData.username}
-                    onChange={e => setFormData({ ...formData, username: e.target.value })}
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-medium"
-                    placeholder="Username"
-                  />
-                </div>
-              </div>
-
-              {/* Reader Specialty or Bio */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                  {user.role === 'reader' ? 'Phong Cách Xem / Bộ Bài Sở Trường' : 'Ghi Chú Cá Nhân'}
-                </label>
-                <input 
-                  type="text" 
-                  value={formData.specialty}
-                  onChange={e => setFormData({ ...formData, specialty: e.target.value })}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
-                  placeholder={user.role === 'reader' ? 'Ví dụ: Rider-Waite, Tarot Chữa Lành, Thần Số Học, Oracle' : 'Ghi chú thêm về vai trò của bạn'}
-                />
-              </div>
-
-              <hr className="border-slate-100" />
-
-              {/* Bank Account Section */}
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                    <Building2 size={18} className="text-indigo-600" />
-                    <span>Tài Khoản Nhận Lương (VietQR Chuẩn)</span>
-                  </h4>
-                  <span className="text-[11px] bg-indigo-50 text-indigo-700 px-2.5 py-0.5 rounded-full font-bold">
-                    Napas 24/7
-                  </span>
-                </div>
-
-                <div className="space-y-4">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            {/* Left Column: 2 Cards */}
+            <div className="lg:col-span-7 space-y-6">
+              {/* Card 1: Personal Info */}
+              <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-100 shadow-sm space-y-5">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
+                    <UserIcon size={20} />
+                  </div>
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Ngân Hàng Thụ Hưởng</label>
-                    <select
-                      value={formData.bank_name}
-                      onChange={e => setFormData({ ...formData, bank_name: e.target.value })}
-                      className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-sm font-semibold text-slate-800"
-                    >
-                      {VIETNAM_BANKS.map((b) => (
-                        <option key={b.code} value={b.shortName}>
-                          {b.shortName} - {b.name} ({b.code})
-                        </option>
-                      ))}
-                    </select>
+                    <h3 className="text-base sm:text-lg font-bold text-slate-900">Thông Tin Cá Nhân & Tài Khoản</h3>
+                    <p className="text-slate-400 text-xs">Cập nhật họ tên, ảnh đại diện và ghi chú làm việc.</p>
                   </div>
+                </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1.5">Số Tài Khoản</label>
-                      <input 
-                        type="text" 
-                        required
-                        value={formData.bank_account}
-                        onChange={e => setFormData({ ...formData, bank_account: e.target.value.replace(/\s+/g, '') })}
-                        className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-mono font-bold tracking-wider"
-                        placeholder="Ví dụ: 0987654321"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1.5">Tên Chủ Tài Khoản (In Hoa)</label>
-                      <input 
-                        type="text" 
-                        required
-                        value={formData.bank_account_name}
-                        onChange={e => setFormData({ ...formData, bank_account_name: formatAccountName(e.target.value) })}
-                        className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-mono uppercase font-bold"
-                        placeholder="NGUYEN VAN A"
-                      />
-                    </div>
+                {/* Avatar Selector Presets */}
+                <div className="space-y-2.5">
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">Ảnh Đại Diện</label>
+                  <div className="flex flex-wrap items-center gap-3">
+                    {avatarPresets.map((preset) => {
+                      const isSelected = formData.avatar_url === preset.url || (!formData.avatar_url && preset.label === 'AD');
+                      return (
+                        <button
+                          key={preset.label}
+                          type="button"
+                          onClick={() => setFormData({ ...formData, avatar_url: preset.url })}
+                          className={`relative w-12 h-12 rounded-2xl font-black text-sm transition-all flex items-center justify-center border-2 cursor-pointer ${preset.bg} ${preset.text} ${
+                            isSelected 
+                              ? `${preset.border} ring-2 ring-purple-500 ring-offset-2 scale-105 shadow-sm` 
+                              : `${preset.border} hover:scale-105 opacity-80 hover:opacity-100`
+                          }`}
+                        >
+                          <span>{preset.label}</span>
+                          {isSelected && (
+                            <span className="absolute -bottom-1 -right-1 w-4 h-4 bg-purple-600 text-white rounded-full flex items-center justify-center shadow-xs">
+                              <Check size={10} strokeWidth={3} />
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+
+                    <label className="w-12 h-12 rounded-2xl border-2 border-dashed border-slate-300 hover:border-purple-500 bg-white hover:bg-purple-50/50 flex items-center justify-center text-slate-400 hover:text-purple-600 cursor-pointer transition-all shadow-2xs group">
+                      <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
+                      <Upload size={18} className="group-hover:-translate-y-0.5 transition-transform" />
+                    </label>
                   </div>
+                  <p className="text-[11px] text-slate-400">PNG hoặc JPG, tối đa 2MB. Ảnh vuông hiển thị đẹp nhất.</p>
+                </div>
+
+                {/* Name & Username Inputs */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Họ và Tên</label>
+                    <input 
+                      type="text" 
+                      required
+                      value={formData.full_name}
+                      onChange={e => {
+                        const val = e.target.value;
+                        setFormData({ 
+                          ...formData, 
+                          full_name: val,
+                          bank_account_name: formData.bank_account_name || formatAccountName(val)
+                        });
+                      }}
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-purple-500 text-sm font-medium bg-white"
+                      placeholder="Nhập họ và tên đầy đủ"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Tên Đăng Nhập</label>
+                    <input 
+                      type="text" 
+                      required
+                      value={formData.username}
+                      onChange={e => setFormData({ ...formData, username: e.target.value })}
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-purple-500 text-sm font-medium bg-white"
+                      placeholder="Username"
+                    />
+                  </div>
+                </div>
+
+                {/* Specialty / Bio Notes */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">Ghi Chú Cá Nhân</label>
+                  <textarea 
+                    rows={2}
+                    value={formData.specialty}
+                    onChange={e => setFormData({ ...formData, specialty: e.target.value })}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-purple-500 text-sm resize-none bg-white"
+                    placeholder="Ghi chú thêm về vai trò của bạn"
+                  />
                 </div>
               </div>
 
-              <div className="pt-2 flex justify-end">
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="bg-indigo-600 text-white font-bold px-8 py-3.5 rounded-2xl shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all flex items-center space-x-2 disabled:opacity-50"
-                >
-                  {loading ? (
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    <Save size={18} />
-                  )}
-                  <span>Lưu Thông Tin Cá Nhân</span>
-                </button>
+              {/* Card 2: Bank Account Info */}
+              <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-100 shadow-sm space-y-5">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
+                    <CreditCard size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-base sm:text-lg font-bold text-slate-900">Tài Khoản Nhận Lương</h3>
+                    <p className="text-slate-400 text-xs">Dùng để tạo mã VietQR nhận lương. Kiểm tra kỹ trước khi lưu.</p>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">Ngân Hàng Thụ Hưởng</label>
+                  <select
+                    value={formData.bank_name}
+                    onChange={e => setFormData({ ...formData, bank_name: e.target.value })}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-purple-500 bg-white text-sm font-semibold text-slate-800"
+                  >
+                    {VIETNAM_BANKS.map((b) => (
+                      <option key={b.code} value={b.shortName}>
+                        {b.shortName} - {b.name} ({b.code})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Số Tài Khoản</label>
+                    <input 
+                      type="text" 
+                      required
+                      value={formData.bank_account}
+                      onChange={e => setFormData({ ...formData, bank_account: e.target.value.replace(/\s+/g, '') })}
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-purple-500 text-sm font-mono font-bold tracking-wider bg-white"
+                      placeholder="Ví dụ: 0987654321"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Tên Chủ Tài Khoản (In Hoa)</label>
+                    <input 
+                      type="text" 
+                      required
+                      value={formData.bank_account_name}
+                      onChange={e => setFormData({ ...formData, bank_account_name: formatAccountName(e.target.value) })}
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-purple-500 text-sm font-mono uppercase font-bold bg-white"
+                      placeholder="NGUYEN VAN A"
+                    />
+                  </div>
+                </div>
+
+                <div className="pt-2 flex justify-end">
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="bg-purple-600 hover:bg-purple-700 text-white font-bold px-8 py-3 rounded-2xl shadow-lg shadow-purple-200 transition-all flex items-center space-x-2 disabled:opacity-50 text-sm cursor-pointer"
+                  >
+                    {loading ? (
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <Save size={16} />
+                    )}
+                    <span>Lưu Thông Tin Cá Nhân</span>
+                  </button>
+                </div>
               </div>
             </div>
 
-            {/* Right Card: Live Personal VietQR Preview */}
-            <div className="lg:col-span-5 space-y-4">
-              <div className="bg-gradient-to-br from-slate-900 via-indigo-950 to-purple-950 rounded-3xl p-6 text-white shadow-xl relative overflow-hidden border border-indigo-900/50">
-                <div className="absolute top-0 right-0 p-8 opacity-10">
-                  <CreditCard size={140} />
-                </div>
-
-                <div className="relative z-10 space-y-5">
+            {/* Right Column: Dark Modern VietQR Card */}
+            <div className="lg:col-span-5 lg:sticky lg:top-6 space-y-4">
+              <div className="bg-[#18182f] rounded-3xl p-6 sm:p-7 text-white shadow-2xl relative overflow-hidden border border-indigo-900/40">
+                <div className="space-y-5">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Sparkles size={18} className="text-amber-400" />
-                      <span className="text-xs font-bold uppercase tracking-wider text-indigo-200">Thẻ Lương VietQR</span>
+                    <div className="flex items-center gap-1.5 text-amber-400">
+                      <Sparkles size={16} />
+                      <span className="text-xs font-black uppercase tracking-wider text-amber-300">Thẻ Lương VietQR</span>
                     </div>
-                    <span className="px-3 py-1 rounded-full text-[11px] font-black bg-indigo-500/30 text-indigo-300 border border-indigo-400/30">
-                      {formData.bank_name || 'MBBank'}
+                    <span className="px-3 py-1 rounded-full text-xs font-bold bg-white/10 text-white border border-white/15">
+                      {formData.bank_name || 'MB Bank'}
                     </span>
                   </div>
 
-                  {/* QR Image */}
-                  <div className="bg-white p-4 rounded-2xl shadow-lg flex flex-col items-center justify-center mx-auto w-56 h-56">
+                  {/* QR Image Frame */}
+                  <div className="bg-white p-4 rounded-3xl shadow-xl flex flex-col items-center justify-center mx-auto w-64 h-64 border border-white/20">
                     {livePersonalQRUrl ? (
                       <img 
                         src={livePersonalQRUrl} 
                         alt="Mã QR nhận lương" 
-                        className="w-full h-full object-contain"
+                        className="w-full h-full object-contain rounded-xl"
                       />
                     ) : (
                       <div className="flex flex-col items-center justify-center text-slate-400 text-center p-4">
-                        <QrCode size={48} className="text-slate-300 mb-2" />
-                        <span className="text-xs">Vui lòng nhập Số tài khoản để tạo mã VietQR</span>
+                        <QrCode size={56} className="text-slate-300 mb-2" />
+                        <span className="text-xs font-medium">Vui lòng nhập Số tài khoản để tạo mã VietQR</span>
                       </div>
                     )}
                   </div>
 
+                  {!formData.bank_account && (
+                    <p className="text-center text-xs text-slate-400">
+                      Vui lòng nhập Số tài khoản để tạo mã VietQR
+                    </p>
+                  )}
+
                   {/* Card Details */}
-                  <div className="space-y-2 pt-2 border-t border-white/10 text-sm">
+                  <div className="space-y-2.5 pt-3 border-t border-white/10 text-sm">
                     <div className="flex justify-between items-center">
-                      <span className="text-slate-400 text-xs">Chủ tài khoản:</span>
-                      <span className="font-mono font-bold text-white tracking-wide">
-                        {formData.bank_account_name || formData.full_name?.toUpperCase() || 'CHƯA CẬP NHẬT'}
+                      <span className="text-slate-400 text-xs">Chủ tài khoản</span>
+                      <span className="font-mono font-black text-white tracking-wide text-xs sm:text-sm">
+                        {formData.bank_account_name || formData.full_name?.toUpperCase() || 'ADMINISTRATOR'}
                       </span>
                     </div>
 
                     <div className="flex justify-between items-center">
-                      <span className="text-slate-400 text-xs">Số tài khoản:</span>
+                      <span className="text-slate-400 text-xs">Số tài khoản</span>
                       <div className="flex items-center gap-2">
-                        <span className="font-mono font-bold text-amber-300 tracking-wider">
-                          {formData.bank_account || '••••••••'}
+                        <span className="font-mono font-bold text-amber-300 tracking-wider text-sm">
+                          {formData.bank_account || '•••• ••••'}
                         </span>
                         {formData.bank_account && (
                           <button
                             type="button"
                             onClick={handleCopyStk}
-                            className="p-1 rounded bg-white/10 hover:bg-white/20 transition-all text-white/80"
+                            className="p-1 rounded bg-white/10 hover:bg-white/20 transition-all text-white/80 cursor-pointer"
                             title="Sao chép STK"
                           >
                             {copiedStk ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
@@ -1143,10 +1203,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     </div>
                   </div>
 
-                  <div className="bg-indigo-900/40 p-3 rounded-xl border border-indigo-500/20 text-[11px] text-indigo-200 flex items-start gap-2">
-                    <Smartphone size={16} className="shrink-0 text-indigo-400 mt-0.5" />
+                  {/* Bottom Note Callout */}
+                  <div className="bg-indigo-950/70 p-3.5 rounded-2xl border border-indigo-500/20 text-xs text-indigo-200 flex items-start gap-2.5">
+                    <AlertCircle size={16} className="shrink-0 text-indigo-400 mt-0.5" />
                     <span>
-                      Mã QR này sẽ hiển thị trực tiếp tại mục <strong>Bảng Lương</strong> để Admin quét thanh toán tự động cho bạn. Hãy mở app ngân hàng quét thử để kiểm tra tính chính xác!
+                      Mã QR này hiển thị trực tiếp tại mục <strong>Bảng Lương</strong> để Admin quét khi trả lương.
                     </span>
                   </div>
                 </div>
@@ -1840,6 +1901,55 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   Gói được đánh dấu <strong>Phổ biến</strong> sẽ có nhãn cam nổi bật trên màn hình Nhập Doanh Thu, giúp Reader và Sale chốt nhanh với khách mà không cần gõ phím.
                 </p>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ==================== TAB 5: NOTIFICATIONS CONFIG ==================== */}
+      {activeTab === 'notifications' && (
+        <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-100 shadow-sm space-y-6">
+          <div className="flex items-center space-x-3">
+            <div className="w-12 h-12 rounded-2xl bg-purple-50 flex items-center justify-center text-purple-600">
+              <Bell size={24} />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-slate-900">Cài Đặt Thông Báo & Âm Thanh</h3>
+              <p className="text-xs text-slate-400">Tùy chỉnh nhận thông báo đơn hàng mới, ca làm việc và tin nhắn hệ thống</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/60 flex items-center justify-between">
+              <div>
+                <p className="font-bold text-sm text-slate-800">Thông báo đơn hàng mới</p>
+                <p className="text-xs text-slate-400 mt-0.5">Phát chuông khi nhân viên tạo đơn mới</p>
+              </div>
+              <span className="px-3 py-1 bg-emerald-100 text-emerald-800 text-xs font-bold rounded-full">Bật</span>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/60 flex items-center justify-between">
+              <div>
+                <p className="font-bold text-sm text-slate-800">Thông báo nhắc ca làm</p>
+                <p className="text-xs text-slate-400 mt-0.5">Nhắc nhở trước 15 phút khi đến ca trực</p>
+              </div>
+              <span className="px-3 py-1 bg-emerald-100 text-emerald-800 text-xs font-bold rounded-full">Bật</span>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/60 flex items-center justify-between">
+              <div>
+                <p className="font-bold text-sm text-slate-800">Âm thanh chốt đơn tiền về</p>
+                <p className="text-xs text-slate-400 mt-0.5">Hiệu ứng âm thanh ting ting khi ghi nhận doanh thu</p>
+              </div>
+              <span className="px-3 py-1 bg-emerald-100 text-emerald-800 text-xs font-bold rounded-full">Bật</span>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/60 flex items-center justify-between">
+              <div>
+                <p className="font-bold text-sm text-slate-800">Đồng bộ tự động Meta Ads</p>
+                <p className="text-xs text-slate-400 mt-0.5">Cập nhật chi phí ads mỗi 2 phút một lần</p>
+              </div>
+              <span className="px-3 py-1 bg-purple-100 text-purple-800 text-xs font-bold rounded-full">Tự động</span>
             </div>
           </div>
         </div>

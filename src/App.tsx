@@ -648,7 +648,7 @@ export default function App() {
           </button>
         </div>
 
-        <div className={`${view === 'entry' ? 'p-3 lg:p-5 flex-1 min-h-0 flex flex-col' : 'p-4 lg:p-8'} max-w-7xl mx-auto w-full`}>
+        <div className={`${view === 'entry' ? 'p-3 lg:p-5 flex-1 min-h-0 flex flex-col' : 'p-4 lg:p-8'} ${view === 'settings' ? 'max-w-[1600px]' : 'max-w-7xl'} mx-auto w-full`}>
           <AnimatePresence mode="wait">
             {renderContent()}
           </AnimatePresence>
