@@ -568,8 +568,8 @@ export const SaleEntryView: React.FC<SaleEntryViewProps> = ({
         }`}>
           
           <form onSubmit={handleSaveAndContinue} className="flex flex-col h-full min-h-0 justify-between overflow-hidden">
-            {/* Scrollable form body */}
-            <div className="flex-1 min-h-0 overflow-y-auto space-y-3.5 pr-1.5 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-200 hover:[&::-webkit-scrollbar-thumb]:bg-slate-300">
+            {/* Scrollable form body with scrollbar flush right along the card edge */}
+            <div className="flex-1 min-h-0 overflow-y-auto space-y-3.5 -mr-4 sm:-mr-6 pr-4 sm:pr-5 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-200 hover:[&::-webkit-scrollbar-thumb]:bg-slate-300">
               
               {/* Box "Nhập nhanh" */}
               <div className="bg-[#faf8fe] border border-[#ede9fe] rounded-2xl p-3.5 space-y-2.5">
@@ -860,14 +860,14 @@ export const SaleEntryView: React.FC<SaleEntryViewProps> = ({
             </div>
           </div>
 
-          {/* Scrollable list of recent orders with slim scrollbar */}
-          <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pt-3 pr-1.5 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-200 hover:[&::-webkit-scrollbar-thumb]:bg-slate-300">
+          {/* Scrollable list of recent orders with slim scrollbar flush right along the card edge */}
+          <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pt-3 -mr-4 sm:-mr-6 pr-4 sm:pr-5 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-200 hover:[&::-webkit-scrollbar-thumb]:bg-slate-300">
             {sessionSales.map((s, idx) => {
               const isBeingEdited = editingSale?.id === s.id;
               return (
                 <div 
                   key={s.id || idx} 
-                  className={`group relative flex items-start justify-between p-2.5 -mx-2.5 rounded-2xl transition-all ${
+                  className={`group relative flex items-start justify-between p-2.5 rounded-2xl transition-all ${
                     isBeingEdited ? 'bg-[#faf5ff] ring-1.5 ring-[#7c3aed]' : 'hover:bg-slate-50'
                   }`}
                 >
