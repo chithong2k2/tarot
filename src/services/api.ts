@@ -124,4 +124,31 @@ export const apiService = {
       return { success: false, message: 'Không thể kết nối (Failed to fetch)', error: String(error) };
     }
   },
+
+  testMetaAds: async (token?: string, accountId?: string) => {
+    try {
+      const response = await fetch('/api/test-fb-ads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accessToken: token, adAccountId: accountId })
+      });
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      return { success: false, message: 'Lỗi gọi API kiểm tra: ' + (error instanceof Error ? error.message : String(error)) };
+    }
+  },
+
+  syncMetaAds: async () => {
+    try {
+      const response = await fetch('/api/sync-fb-ads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      return { success: false, message: 'Lỗi gọi API đồng bộ: ' + (error instanceof Error ? error.message : String(error)) };
+    }
+  }
 };

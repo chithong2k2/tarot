@@ -5,7 +5,7 @@ import axios from "axios";
 import dotenv from "dotenv";
 import cron from "node-cron";
 import { initializeApp } from "firebase/app";
-import { getFirestore, doc, setDoc, getDocs, collection, query, orderBy, limit, where } from "firebase/firestore";
+import { getFirestore, doc, setDoc, getDoc, getDocs, collection, query, orderBy, limit, where } from "firebase/firestore";
 
 dotenv.config();
 
@@ -22,12 +22,31 @@ const firebaseConfig = {
 const firebaseApp = initializeApp(firebaseConfig);
 const db = getFirestore(firebaseApp);
 
+async function getMetaCredentials() {
+  try {
+    const snap = await getDoc(doc(db, 'settings', 'global'));
+    if (snap.exists()) {
+      const data = snap.data();
+      const fbToken = data.fb_access_token?.trim();
+      const fbAdId = data.fb_ad_account_id?.trim();
+      if (fbToken && fbAdId) {
+        return { accessToken: fbToken, adAccountId: fbAdId };
+      }
+    }
+  } catch (err) {
+    console.error("[Server] Error reading credentials from Firestore:", err);
+  }
+  return {
+    accessToken: process.env.FB_ACCESS_TOKEN || '',
+    adAccountId: process.env.FB_AD_ACCOUNT_ID || ''
+  };
+}
+
 async function fetchAndSaveAdSpend() {
-  const accessToken = process.env.FB_ACCESS_TOKEN;
-  const adAccountId = process.env.FB_AD_ACCOUNT_ID;
+  const { accessToken, adAccountId } = await getMetaCredentials();
 
   if (!accessToken || !adAccountId) {
-    console.error("[Cron] Missing Facebook credentials. Skipping update.");
+    console.error("[Cron] Missing Facebook credentials (neither in Firestore nor .env). Skipping update.");
     return;
   }
 
@@ -90,12 +109,11 @@ async function startServer() {
 
   // API route to fetch Facebook Ads spend for today
   app.get("/api/fb-spend", async (req, res) => {
-    const accessToken = process.env.FB_ACCESS_TOKEN;
-    const adAccountId = process.env.FB_AD_ACCOUNT_ID;
+    const { accessToken, adAccountId } = await getMetaCredentials();
 
     if (!accessToken || !adAccountId) {
       return res.status(400).json({ 
-        error: "Missing Facebook credentials in .env file." 
+        error: "Chưa cấu hình thông tin Facebook Ads (Token hoặc ID tài khoản)." 
       });
     }
 
@@ -113,7 +131,7 @@ async function startServer() {
       );
 
       const insights = response.data.data;
-      const spend = insights.length > 0 ? parseFloat(insights[0].spend) : 0;
+      const spend = insights && insights.length > 0 ? parseFloat(insights[0].spend) : 0;
       res.json({ spend });
     } catch (error: any) {
       console.error("Facebook API Error:", error.response?.data || error.message);
@@ -126,13 +144,12 @@ async function startServer() {
 
   // API route to sync realtime daily Facebook Ads spend into Firestore
   app.post("/api/sync-fb-ads", async (req, res) => {
-    const accessToken = process.env.FB_ACCESS_TOKEN;
-    const adAccountId = process.env.FB_AD_ACCOUNT_ID;
+    const { accessToken, adAccountId } = await getMetaCredentials();
 
     if (!accessToken || !adAccountId) {
       return res.status(400).json({ 
         success: false, 
-        message: "Chưa cấu hình FB_ACCESS_TOKEN và FB_AD_ACCOUNT_ID trong file .env" 
+        message: "Chưa cấu hình FB_ACCESS_TOKEN và FB_AD_ACCOUNT_ID (trong Cài Đặt hoặc file .env)" 
       });
     }
 
@@ -177,6 +194,66 @@ async function startServer() {
       res.status(500).json({ 
         success: false, 
         message: "Lỗi kéo dữ liệu từ Facebook: " + (error.response?.data?.error?.message || error.message)
+      });
+    }
+  });
+
+  // API route to test Facebook Ads connection with live account info
+  app.post("/api/test-fb-ads", async (req, res) => {
+    const { accessToken: reqToken, adAccountId: reqAccountId } = req.body || {};
+    const stored = await getMetaCredentials();
+    const accessToken = reqToken?.trim() || stored.accessToken;
+    const adAccountId = reqAccountId?.trim() || stored.adAccountId;
+
+    if (!accessToken || !adAccountId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Chưa có Access Token hoặc ID Tài khoản Quảng cáo. Vui lòng nhập và thử lại." 
+      });
+    }
+
+    try {
+      const formattedId = adAccountId.startsWith("act_") ? adAccountId : `act_${adAccountId}`;
+      const response = await axios.get(
+        `https://graph.facebook.com/v19.0/${formattedId}`,
+        {
+          params: {
+            fields: "name,account_status,currency,amount_spent,timezone_name",
+            access_token: accessToken,
+          },
+        }
+      );
+
+      const data = response.data;
+      const statusMap: Record<number, string> = {
+        1: "Hoạt động bình thường (ACTIVE)",
+        2: "Bị vô hiệu hóa (DISABLED)",
+        3: "Chưa thanh toán (UNSETTLED)",
+        7: "Đang chờ xem xét (PENDING_REVIEW)",
+        9: "Đang gia hạn (IN_GRACE_PERIOD)",
+        100: "Đang chờ thanh toán đóng (PENDING_CLOSURE)",
+        101: "Đã đóng (CLOSED)"
+      };
+      const statusText = statusMap[data.account_status] || `Trạng thái: ${data.account_status}`;
+
+      return res.json({
+        success: true,
+        account: {
+          id: data.id,
+          name: data.name,
+          currency: data.currency,
+          status: statusText,
+          amount_spent: data.amount_spent,
+          timezone: data.timezone_name
+        },
+        message: `Kết nối thành công tới tài khoản "${data.name}" (${data.currency}) - ${statusText}`
+      });
+    } catch (error: any) {
+      console.error("[Test FB] Error:", error.response?.data || error.message);
+      const fbError = error.response?.data?.error?.message || error.message;
+      return res.status(400).json({
+        success: false,
+        message: `Lỗi kết nối Facebook: ${fbError}`
       });
     }
   });

@@ -9,6 +9,8 @@ export interface User {
   avatar_url?: string;
   bank_name?: string;
   bank_account?: string;
+  bank_account_name?: string;
+  specialty?: string;
   commission_percent: number;
   status?: 'active' | 'inactive';
   created_at?: string;
@@ -90,6 +92,9 @@ export interface SystemSettings {
   bank_name?: string;
   bank_account_number?: string;
   bank_account_name?: string;
+  fb_access_token?: string;
+  fb_ad_account_id?: string;
+  operating_cost_rate?: number;
 }
 
 export interface AdProfitData {
