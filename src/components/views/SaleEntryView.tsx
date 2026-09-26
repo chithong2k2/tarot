@@ -491,11 +491,11 @@ export const SaleEntryView: React.FC<SaleEntryViewProps> = ({
   };
 
   return (
-    <div className="max-w-6xl mx-auto space-y-4 pb-4">
+    <div className="max-w-6xl mx-auto w-full h-full flex flex-col min-h-0 space-y-3 pb-1">
       {/* 1. Header Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="shrink-0 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight">Nhập Doanh Thu</h1>
+          <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">Nhập Doanh Thu</h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-0.5">Ghi nhận doanh thu & hoa hồng cho nhân sự theo từng ca</p>
         </div>
 
@@ -522,17 +522,17 @@ export const SaleEntryView: React.FC<SaleEntryViewProps> = ({
         </div>
       </div>
 
-      {/* 2. Main Layout (Equal Height 2 Columns with Internal Scrolling) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch lg:h-[710px]">
+      {/* 2. Main Layout (Equal Height 2 Columns with Internal Scrolling fitting device screen) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch flex-1 min-h-0 overflow-hidden">
         
         {/* ============================================================
             LEFT COLUMN (lg:col-span-8): Form Card
         ============================================================ */}
-        <div className="lg:col-span-8 bg-white rounded-3xl border border-slate-100 shadow-sm p-6 flex flex-col justify-between h-full overflow-hidden">
+        <div className="lg:col-span-8 bg-white rounded-3xl border border-slate-100 shadow-sm p-5 sm:p-6 flex flex-col justify-between h-full min-h-0 overflow-hidden">
           
-          <form onSubmit={handleSaveAndContinue} className="flex flex-col h-full justify-between overflow-hidden">
+          <form onSubmit={handleSaveAndContinue} className="flex flex-col h-full min-h-0 justify-between overflow-hidden">
             {/* Scrollable form body */}
-            <div className="flex-1 overflow-y-auto space-y-4 pr-1.5 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-200 hover:[&::-webkit-scrollbar-thumb]:bg-slate-300">
+            <div className="flex-1 min-h-0 overflow-y-auto space-y-3.5 pr-1.5 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-200 hover:[&::-webkit-scrollbar-thumb]:bg-slate-300">
               
               {/* Box "Nhập nhanh" */}
               <div className="bg-[#faf8fe] border border-[#ede9fe] rounded-2xl p-3.5 space-y-2.5">
@@ -798,7 +798,7 @@ export const SaleEntryView: React.FC<SaleEntryViewProps> = ({
         {/* ============================================================
             RIGHT COLUMN (lg:col-span-4): The "ĐƠN VỪA NHẬP" Card
         ============================================================ */}
-        <div className="lg:col-span-4 bg-white rounded-3xl border border-slate-100 shadow-sm p-6 flex flex-col h-full overflow-hidden">
+        <div className="lg:col-span-4 bg-white rounded-3xl border border-slate-100 shadow-sm p-5 sm:p-6 flex flex-col h-full min-h-0 overflow-hidden">
           {/* Top stats summary */}
           <div className="shrink-0 space-y-3.5 pb-3.5 border-b border-slate-100">
             <div className="flex items-center justify-between">
@@ -822,7 +822,7 @@ export const SaleEntryView: React.FC<SaleEntryViewProps> = ({
           </div>
 
           {/* Scrollable list of recent orders with slim scrollbar */}
-          <div className="flex-1 overflow-y-auto space-y-2 pt-3 pr-1.5 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-200 hover:[&::-webkit-scrollbar-thumb]:bg-slate-300">
+          <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pt-3 pr-1.5 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-200 hover:[&::-webkit-scrollbar-thumb]:bg-slate-300">
             {sessionSales.map((s, idx) => {
               const isBeingEdited = editingSale?.id === s.id;
               return (

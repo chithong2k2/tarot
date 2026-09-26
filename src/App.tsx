@@ -612,9 +612,9 @@ export default function App() {
         setEditingSale={setEditingSale}
       />
 
-      <main className="flex-1 min-w-0 overflow-auto lg:pl-64">
+      <main className={`flex-1 min-w-0 ${view === 'entry' ? 'h-screen overflow-hidden flex flex-col' : 'overflow-auto'} lg:pl-64`}>
         {/* Mobile Header */}
-        <div className="lg:hidden bg-white border-b border-slate-200 p-4 flex items-center justify-between sticky top-0 z-20">
+        <div className="lg:hidden bg-white border-b border-slate-200 p-3.5 flex items-center justify-between sticky top-0 z-20 shrink-0">
           <div className="flex items-center space-x-3">
             <div className="w-8 h-8 rounded-lg overflow-hidden border border-slate-100">
               <img 
@@ -628,13 +628,13 @@ export default function App() {
           </div>
           <button 
             onClick={() => setIsSidebarOpen(true)}
-            className="p-2 text-slate-500 hover:bg-slate-50 rounded-lg"
+            className="p-2 text-slate-500 hover:bg-slate-50 rounded-lg cursor-pointer"
           >
             <Menu size={24} />
           </button>
         </div>
 
-        <div className="p-4 lg:p-8 max-w-7xl mx-auto">
+        <div className={`${view === 'entry' ? 'p-3 lg:p-5 flex-1 min-h-0 flex flex-col' : 'p-4 lg:p-8'} max-w-7xl mx-auto w-full`}>
           <AnimatePresence mode="wait">
             {renderContent()}
           </AnimatePresence>
