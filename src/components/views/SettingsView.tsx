@@ -25,7 +25,11 @@ import {
   Key,
   Activity,
   Sliders,
-  Smartphone
+  Smartphone,
+  Download,
+  Upload,
+  Archive,
+  FileJson
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { User, SystemSettings } from '../../types';
@@ -108,6 +112,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [copiedStk, setCopiedStk] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [passMessage, setPassMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+
+  // Backup & Restore states
+  const [backupLoading, setBackupLoading] = useState(false);
+  const [restoreLoading, setRestoreLoading] = useState(false);
+  const [restoreData, setRestoreData] = useState<any>(null);
+  const [showRestoreModal, setShowRestoreModal] = useState(false);
 
   // Sync form data when user prop changes
   useEffect(() => {
@@ -431,6 +441,87 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       setMessage({ type: 'error', text: 'Lỗi đồng bộ dữ liệu sang Google Sheets' });
     } finally {
       setSyncLoading(false);
+    }
+  };
+
+  // Export full JSON database backup
+  const handleExportBackup = async () => {
+    setBackupLoading(true);
+    setMessage(null);
+    try {
+      const res = await firebaseService.exportFullBackup();
+      if (res.success && res.backup) {
+        const jsonStr = JSON.stringify(res.backup, null, 2);
+        const blob = new Blob([jsonStr], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        const now = new Date();
+        const dateStr = now.toISOString().slice(0, 10);
+        const timeStr = `${String(now.getHours()).padStart(2, '0')}h${String(now.getMinutes()).padStart(2, '0')}`;
+        a.href = url;
+        a.download = `tarot_backup_${dateStr}_${timeStr}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        setMessage({ 
+          type: 'success', 
+          text: `Đã xuất file sao lưu hệ thống thành công! (${res.backup.stats?.total_sales || 0} đơn hàng, ${res.backup.stats?.total_users || 0} nhân sự)` 
+        });
+      } else {
+        setMessage({ type: 'error', text: res.message || 'Lỗi khi trích xuất dữ liệu sao lưu' });
+      }
+    } catch (err) {
+      setMessage({ type: 'error', text: 'Đã có lỗi xảy ra khi tạo bản sao lưu' });
+    } finally {
+      setBackupLoading(false);
+    }
+  };
+
+  // Handle JSON file selection for restore
+  const handleRestoreFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const text = event.target?.result as string;
+        const parsed = JSON.parse(text);
+        if (!parsed || !parsed.collections) {
+          setMessage({ type: 'error', text: 'File sao lưu không hợp lệ. Cần định dạng JSON đúng chuẩn của Tarot Shop.' });
+          return;
+        }
+        setRestoreData(parsed);
+        setShowRestoreModal(true);
+      } catch (err) {
+        setMessage({ type: 'error', text: 'Lỗi đọc file JSON. Vui lòng kiểm tra lại file.' });
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
+  // Confirm restore
+  const handleConfirmRestore = async () => {
+    if (!restoreData) return;
+    setRestoreLoading(true);
+    try {
+      const res = await firebaseService.restoreFullBackup(restoreData);
+      if (res.success) {
+        setMessage({ type: 'success', text: (res.message || 'Khôi phục dữ liệu thành công!') + ' Đang tải lại...' });
+        setShowRestoreModal(false);
+        setTimeout(() => {
+          window.location.reload();
+        }, 1500);
+      } else {
+        setMessage({ type: 'error', text: res.message || 'Khôi phục dữ liệu thất bại' });
+      }
+    } catch (err) {
+      setMessage({ type: 'error', text: 'Đã có lỗi xảy ra khi khôi phục dữ liệu' });
+    } finally {
+      setRestoreLoading(false);
     }
   };
 
@@ -1189,7 +1280,85 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </div>
           </div>
 
-          {/* 4. Policy, Locking & Maintenance */}
+          {/* 4. Full Database Backup & Restore */}
+          <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-100 shadow-sm space-y-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="w-12 h-12 rounded-2xl bg-purple-50 flex items-center justify-center text-purple-600">
+                  <Archive size={24} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900">Trung Tâm Sao Lưu & Khôi Phục (Backup & Restore)</h3>
+                  <p className="text-xs text-slate-400">Xuất bản sao lưu toàn vẹn hệ thống hoặc phục hồi dữ liệu từ file JSON an toàn</p>
+                </div>
+              </div>
+              <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-purple-50 text-purple-700 border border-purple-100">
+                Offline Backup 1-Click
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Export Backup Card */}
+              <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200/60 flex flex-col justify-between space-y-4">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-slate-800 font-bold text-sm">
+                    <Download size={18} className="text-indigo-600" />
+                    <span>Xuất Bản Sao Lưu Hệ Thống (.json)</span>
+                  </div>
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    Trích xuất 100% dữ liệu hiện có (Đơn hàng, Nhân sự, Ca làm, Bảng lương, Chi phí, Ads) thành file JSON lưu về máy tính của bạn.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleExportBackup}
+                  disabled={backupLoading}
+                  className="w-full py-3.5 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 transition-all shadow-md shadow-indigo-100 flex items-center justify-center gap-2 text-sm disabled:opacity-50"
+                >
+                  {backupLoading ? (
+                    <RefreshCw size={18} className="animate-spin" />
+                  ) : (
+                    <Download size={18} />
+                  )}
+                  <span>Tải Về File Sao Lưu (.json)</span>
+                </button>
+              </div>
+
+              {/* Import / Restore Card */}
+              <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200/60 flex flex-col justify-between space-y-4">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-slate-800 font-bold text-sm">
+                    <Upload size={18} className="text-purple-600" />
+                    <span>Khôi Phục Dữ Liệu Từ File (.json)</span>
+                  </div>
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    Nạp lại dữ liệu từ một bản sao lưu JSON trước đó. Hệ thống sẽ kiểm tra và hiển thị bản tóm tắt trước khi phục hồi.
+                  </p>
+                </div>
+
+                <label className="w-full py-3.5 rounded-xl bg-purple-600 text-white font-bold hover:bg-purple-700 transition-all shadow-md shadow-purple-100 flex items-center justify-center gap-2 text-sm cursor-pointer text-center">
+                  <input
+                    type="file"
+                    accept=".json"
+                    onChange={handleRestoreFileSelected}
+                    className="hidden"
+                  />
+                  <Upload size={18} />
+                  <span>Chọn File JSON Để Khôi Phục</span>
+                </label>
+              </div>
+            </div>
+
+            <div className="bg-amber-50 p-4 rounded-2xl border border-amber-200 text-xs text-amber-800 flex items-start gap-2.5">
+              <AlertCircle size={18} className="shrink-0 text-amber-600 mt-0.5" />
+              <span>
+                <strong>Khuyến nghị an toàn:</strong> Bạn nên định kỳ tải bản sao lưu về máy vào cuối tuần hoặc cuối mỗi kỳ lương để lưu trữ dài hạn và đảm bảo không bao giờ bị mất dữ liệu quan trọng.
+              </span>
+            </div>
+          </div>
+
+          {/* 5. Policy, Locking & Maintenance */}
           <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-100 shadow-sm space-y-6">
             <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
               <Shield size={20} className="text-indigo-600" />
@@ -1418,6 +1587,106 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Restore Confirmation Modal */}
+      <AnimatePresence>
+        {showRestoreModal && restoreData && (
+          <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden"
+            >
+              <div className="bg-purple-600 p-6 text-white flex justify-between items-center">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-white/20 rounded-xl">
+                    <Archive size={22} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold">Xác Nhận Khôi Phục Dữ Liệu</h3>
+                    <p className="text-purple-100 text-xs mt-0.5">Kiểm tra thông tin bản sao lưu trước khi phục hồi</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setShowRestoreModal(false)}
+                  className="text-white/70 hover:text-white"
+                >
+                  <X size={22} />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-5">
+                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200/70 space-y-2">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-slate-500 font-medium">Thời gian tạo bản sao lưu:</span>
+                    <strong className="text-slate-800 font-mono">
+                      {restoreData.exported_at ? new Date(restoreData.exported_at).toLocaleString('vi-VN') : 'Không xác định'}
+                    </strong>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-slate-500 font-medium">Phiên bản file:</span>
+                    <strong className="text-slate-800 font-mono">{restoreData.version || '1.0'}</strong>
+                  </div>
+                </div>
+
+                {/* Stats grid */}
+                <div className="grid grid-cols-3 gap-3 text-center">
+                  <div className="p-3 rounded-xl bg-indigo-50 border border-indigo-100">
+                    <span className="text-[10px] text-indigo-600 font-bold uppercase">Đơn Hàng</span>
+                    <p className="text-lg font-black text-indigo-900 mt-1">
+                      {restoreData.stats?.total_sales ?? restoreData.collections?.sales?.length ?? 0}
+                    </p>
+                  </div>
+                  <div className="p-3 rounded-xl bg-purple-50 border border-purple-100">
+                    <span className="text-[10px] text-purple-600 font-bold uppercase">Nhân Sự</span>
+                    <p className="text-lg font-black text-purple-900 mt-1">
+                      {restoreData.stats?.total_users ?? restoreData.collections?.users?.length ?? 0}
+                    </p>
+                  </div>
+                  <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-100">
+                    <span className="text-[10px] text-emerald-600 font-bold uppercase">Ca Làm</span>
+                    <p className="text-lg font-black text-emerald-900 mt-1">
+                      {restoreData.stats?.total_shifts ?? restoreData.collections?.shifts?.length ?? 0}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-800 flex items-start gap-2.5">
+                  <AlertCircle size={18} className="shrink-0 text-amber-600 mt-0.5" />
+                  <span>
+                    <strong>Cảnh báo:</strong> Quá trình khôi phục sẽ ghi đè và cập nhật các bản ghi trong hệ thống bằng dữ liệu từ file backup. Hãy chắc chắn bạn muốn thực hiện thao tác này.
+                  </span>
+                </div>
+
+                <div className="pt-2 flex space-x-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowRestoreModal(false)}
+                    disabled={restoreLoading}
+                    className="flex-1 py-3.5 rounded-xl bg-slate-100 text-slate-600 font-bold hover:bg-slate-200 transition-all text-sm"
+                  >
+                    Hủy Bỏ
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleConfirmRestore}
+                    disabled={restoreLoading}
+                    className="flex-1 py-3.5 rounded-xl bg-purple-600 text-white font-bold hover:bg-purple-700 transition-all shadow-lg shadow-purple-100 flex items-center justify-center gap-2 text-sm disabled:opacity-50"
+                  >
+                    {restoreLoading ? (
+                      <RefreshCw size={18} className="animate-spin" />
+                    ) : (
+                      <Upload size={18} />
+                    )}
+                    <span>Bắt Đầu Khôi Phục</span>
+                  </button>
+                </div>
+              </div>
             </motion.div>
           </div>
         )}

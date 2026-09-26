@@ -650,6 +650,115 @@ export const firebaseService = {
     }
   },
 
+  // --- Full Database Backup & Restore ---
+  exportFullBackup: async (): Promise<{ success: boolean; backup?: any; message?: string }> => {
+    if (!isFirebaseReady()) return { success: false, message: 'Database chưa kết nối' };
+    try {
+      const [
+        usersSnap, 
+        salesSnap, 
+        shiftsSnap, 
+        readerShiftsSnap, 
+        saleShiftsSnap,
+        costsSnap,
+        settingsSnap,
+        adHistorySnap,
+        payrollsSnap
+      ] = await Promise.all([
+        getDocs(collection(db, 'users')),
+        getDocs(collection(db, 'sales')),
+        getDocs(collection(db, 'shifts')),
+        getDocs(collection(db, 'reader_shifts')),
+        getDocs(collection(db, 'sale_shifts')),
+        getDocs(collection(db, 'operating_costs')),
+        getDoc(doc(db, 'settings', 'global')),
+        getDocs(collection(db, 'ad_history')),
+        getDocs(collection(db, 'payrolls'))
+      ]);
+
+      const backup = {
+        app_name: 'Tarot Shop Management',
+        version: '1.0',
+        exported_at: new Date().toISOString(),
+        collections: {
+          users: usersSnap.docs.map(d => ({ id: d.id, ...d.data() })),
+          sales: salesSnap.docs.map(d => ({ id: d.id, ...d.data() })),
+          shifts: shiftsSnap.docs.map(d => ({ id: d.id, ...d.data() })),
+          reader_shifts: readerShiftsSnap.docs.map(d => ({ id: d.id, ...d.data() })),
+          sale_shifts: saleShiftsSnap.docs.map(d => ({ id: d.id, ...d.data() })),
+          operating_costs: costsSnap.docs.map(d => ({ id: d.id, ...d.data() })),
+          settings: settingsSnap.exists() ? settingsSnap.data() : null,
+          ad_history: adHistorySnap.docs.map(d => ({ id: d.id, ...d.data() })),
+          payrolls: payrollsSnap.docs.map(d => ({ id: d.id, ...d.data() }))
+        },
+        stats: {
+          total_users: usersSnap.size,
+          total_sales: salesSnap.size,
+          total_shifts: shiftsSnap.size,
+          total_costs: costsSnap.size,
+          total_ad_days: adHistorySnap.size,
+          total_payrolls: payrollsSnap.size
+        }
+      };
+
+      return { success: true, backup };
+    } catch (error) {
+      console.error("[FirebaseService] exportFullBackup error:", error);
+      return { success: false, message: error instanceof Error ? error.message : String(error) };
+    }
+  },
+
+  restoreFullBackup: async (backupData: any): Promise<FirebaseResponse> => {
+    if (!isFirebaseReady()) return { success: false, message: 'Database chưa kết nối' };
+    if (!backupData || !backupData.collections) {
+      return { success: false, message: 'File sao lưu không hợp lệ hoặc thiếu dữ liệu' };
+    }
+
+    try {
+      const collections = backupData.collections;
+
+      const batchWriteCollection = async (collName: string, items: any[]) => {
+        if (!items || !Array.isArray(items) || items.length === 0) return;
+        const CHUNK_SIZE = 400;
+        for (let i = 0; i < items.length; i += CHUNK_SIZE) {
+          const chunk = items.slice(i, i + CHUNK_SIZE);
+          const batch = writeBatch(db);
+          for (const item of chunk) {
+            const { id, ...data } = item;
+            if (id) {
+              batch.set(doc(db, collName, id), data, { merge: true });
+            } else {
+              const newRef = doc(collection(db, collName));
+              batch.set(newRef, data);
+            }
+          }
+          await batch.commit();
+        }
+      };
+
+      if (collections.users) await batchWriteCollection('users', collections.users);
+      if (collections.sales) await batchWriteCollection('sales', collections.sales);
+      if (collections.shifts) await batchWriteCollection('shifts', collections.shifts);
+      if (collections.reader_shifts) await batchWriteCollection('reader_shifts', collections.reader_shifts);
+      if (collections.sale_shifts) await batchWriteCollection('sale_shifts', collections.sale_shifts);
+      if (collections.operating_costs) await batchWriteCollection('operating_costs', collections.operating_costs);
+      if (collections.ad_history) await batchWriteCollection('ad_history', collections.ad_history);
+      if (collections.payrolls) await batchWriteCollection('payrolls', collections.payrolls);
+
+      if (collections.settings) {
+        await setDoc(doc(db, 'settings', 'global'), collections.settings, { merge: true });
+      }
+
+      return { 
+        success: true, 
+        message: `Khôi phục thành công! (${backupData.stats?.total_sales || collections.sales?.length || 0} đơn hàng, ${backupData.stats?.total_users || collections.users?.length || 0} nhân sự)` 
+      };
+    } catch (error) {
+      console.error("[FirebaseService] restoreFullBackup error:", error);
+      return { success: false, message: 'Lỗi khôi phục: ' + (error instanceof Error ? error.message : String(error)) };
+    }
+  },
+
   // --- Real-time Listeners (Optional but recommended) ---
   subscribeToInitialData: (callback: (data: any) => void) => {
     if (!isFirebaseReady()) return () => {};
