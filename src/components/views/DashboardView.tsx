@@ -26,9 +26,12 @@ import {
   PlusCircle,
   ChevronRight,
   X,
-  Clock
+  Clock,
+  Package,
+  Archive
 } from 'lucide-react';
 import { motion } from 'motion/react';
+import { exportReportPackage } from '../../utils/reportPackage';
 import { 
   BarChart, 
   Bar, 
@@ -101,6 +104,42 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [collapsedStaff, setCollapsedStaff] = React.useState<Record<string, boolean>>({});
   const [isSyncingAds, setIsSyncingAds] = React.useState(false);
   const [syncAdsSuccess, setSyncAdsSuccess] = React.useState<string | null>(null);
+
+  // ZIP Report Package States
+  const [showZipDropdown, setShowZipDropdown] = React.useState(false);
+  const [isExportingZip, setIsExportingZip] = React.useState(false);
+
+  // Close dropdown on click outside
+  React.useEffect(() => {
+    const handleWindowClick = () => setShowZipDropdown(false);
+    if (showZipDropdown) {
+      window.addEventListener('click', handleWindowClick);
+    }
+    return () => window.removeEventListener('click', handleWindowClick);
+  }, [showZipDropdown]);
+
+  const handleExportZip = async (mode: 'week' | 'month') => {
+    setIsExportingZip(true);
+    setShowZipDropdown(false);
+    try {
+      const res = await exportReportPackage({
+        mode,
+        sales,
+        users,
+        adHistory,
+        costs: []
+      });
+      if (res.success) {
+        alert(res.message);
+      } else {
+        alert('Lỗi: ' + res.message);
+      }
+    } catch (err: any) {
+      alert('Lỗi xuất gói báo cáo: ' + (err?.message || String(err)));
+    } finally {
+      setIsExportingZip(false);
+    }
+  };
 
   const handleSyncFbAds = async () => {
     try {
@@ -384,6 +423,63 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <FileDown size={15} />
               <span>Xuất Excel</span>
             </button>
+
+            {/* ZIP Report Package Dropdown */}
+            <div className="relative">
+              <button
+                type="button"
+                disabled={isExportingZip}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowZipDropdown(!showZipDropdown);
+                }}
+                className="flex items-center space-x-1.5 bg-indigo-50 border border-indigo-200 px-3.5 py-2 rounded-xl text-indigo-700 hover:bg-indigo-100 transition-colors shadow-sm font-semibold text-xs cursor-pointer disabled:opacity-60"
+                title="Tải trọn bộ file báo cáo & sao lưu dạng thư mục ZIP"
+              >
+                {isExportingZip ? <RefreshCw size={14} className="animate-spin" /> : <Package size={14} />}
+                <span>{isExportingZip ? 'Đang nén...' : 'Gói Báo Cáo (.zip)'}</span>
+                <ChevronDown size={13} className={`transition-transform duration-200 ${showZipDropdown ? 'rotate-180' : ''}`} />
+              </button>
+
+              {showZipDropdown && (
+                <div 
+                  className="absolute right-0 top-full mt-2 w-72 bg-white rounded-2xl shadow-2xl border border-slate-100 p-2 z-50 space-y-1.5"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="px-3 py-1.5 border-b border-slate-100">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Chọn kỳ đóng gói (.zip)</p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleExportZip('week')}
+                    className="w-full text-left p-2.5 rounded-xl hover:bg-indigo-50 transition-colors flex items-start gap-2.5 group cursor-pointer"
+                  >
+                    <div className="p-2 rounded-lg bg-indigo-100 text-indigo-700 group-hover:bg-indigo-600 group-hover:text-white transition-colors mt-0.5 shrink-0">
+                      <Calendar size={16} />
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-slate-800 group-hover:text-indigo-700">Trọn Gói Tuần Này</p>
+                      <p className="text-[10px] text-slate-400 mt-0.5">Doanh thu tuần, Bảng lương tuần, Tóm tắt Zalo & Bản backup</p>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleExportZip('month')}
+                    className="w-full text-left p-2.5 rounded-xl hover:bg-purple-50 transition-colors flex items-start gap-2.5 group cursor-pointer"
+                  >
+                    <div className="p-2 rounded-lg bg-purple-100 text-purple-700 group-hover:bg-purple-600 group-hover:text-white transition-colors mt-0.5 shrink-0">
+                      <Archive size={16} />
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-slate-800 group-hover:text-purple-700">Trọn Gói Cả Tháng Này</p>
+                      <p className="text-[10px] text-slate-400 mt-0.5">Tổng kết tháng, Lãi ròng, Bảng kê lương tháng & Bản backup</p>
+                    </div>
+                  </button>
+                </div>
+              )}
+            </div>
             {!showConfirmReset ? (
               <button 
                 onClick={() => setShowConfirmReset(true)}
