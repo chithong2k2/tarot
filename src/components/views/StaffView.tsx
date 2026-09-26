@@ -8,7 +8,9 @@ import {
   X,
   RefreshCw,
   User as UserIcon,
-  Check
+  Check,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { User, UserRole, SaleRecord } from '../../types';
@@ -201,6 +203,21 @@ export const StaffView: React.FC<StaffViewProps> = ({
 
     return result;
   }, [activeUsers, roleFilter, searchTerm, sortField, sortOrder, sales]);
+
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(8);
+
+  // Reset to first page when search, filter, or sort changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, roleFilter, sortField, sortOrder]);
+
+  const totalPages = Math.ceil(displayedUsers.length / pageSize) || 1;
+  const startIndex = (currentPage - 1) * pageSize;
+  const paginatedUsers = useMemo(() => {
+    return displayedUsers.slice(startIndex, startIndex + pageSize);
+  }, [displayedUsers, startIndex, pageSize]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -440,7 +457,7 @@ export const StaffView: React.FC<StaffViewProps> = ({
 
             {/* Table Body */}
             <tbody className="divide-y divide-slate-100">
-              {displayedUsers.map((u) => {
+              {paginatedUsers.map((u) => {
                 const initials = getStaffInitials(u);
                 const stats = getStaffStats(u);
                 
@@ -592,6 +609,81 @@ export const StaffView: React.FC<StaffViewProps> = ({
             </div>
           )}
         </div>
+
+        {/* Pagination Bar */}
+        {displayedUsers.length > 0 && (
+          <div className="py-3.5 px-6 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 bg-white">
+            <div className="text-xs text-slate-500 font-medium flex items-center gap-1.5">
+              <span>Hiển thị</span>
+              <strong className="text-slate-800 font-bold">{startIndex + 1}</strong>
+              <span>-</span>
+              <strong className="text-slate-800 font-bold">{Math.min(startIndex + pageSize, displayedUsers.length)}</strong>
+              <span>trên</span>
+              <strong className="text-slate-800 font-bold">{displayedUsers.length}</strong>
+              <span>nhân viên</span>
+            </div>
+
+            <div className="flex items-center gap-4">
+              {/* Page size select */}
+              <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
+                <span className="hidden sm:inline">Số dòng:</span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                  className="px-2.5 py-1 rounded-xl border border-slate-200 bg-white font-bold text-slate-700 outline-none focus:ring-1 focus:ring-[#7c3aed] cursor-pointer text-xs"
+                >
+                  <option value={5}>5 / trang</option>
+                  <option value={8}>8 / trang</option>
+                  <option value={10}>10 / trang</option>
+                  <option value={20}>20 / trang</option>
+                </select>
+              </div>
+
+              {/* Navigation buttons */}
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  className="p-1.5 rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
+                  title="Trang trước"
+                >
+                  <ChevronLeft size={16} />
+                </button>
+
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+                  <button
+                    key={p}
+                    type="button"
+                    data-page={p}
+                    aria-label={`Trang ${p}`}
+                    onClick={() => setCurrentPage(p)}
+                    className={`w-8 h-8 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center ${
+                      currentPage === p
+                        ? 'bg-[#6d28d9] text-white shadow-xs'
+                        : 'text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    {p}
+                  </button>
+                ))}
+
+                <button
+                  type="button"
+                  disabled={currentPage === totalPages || totalPages === 0}
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  className="p-1.5 rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
+                  title="Trang sau"
+                >
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 4. Add / Edit Staff Modal */}
