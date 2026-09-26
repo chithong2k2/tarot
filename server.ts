@@ -298,8 +298,8 @@ async function startServer() {
         console.log(`[AI Menu] Analyzing price menu with Google Gemini Vision (key: ${geminiKey.slice(0, 4)}...${geminiKey.slice(-4)})...`);
         const ai = new GoogleGenAI({ apiKey: geminiKey });
         
-        // Try candidate models in order of best vision performance & availability
-        const candidateModels = ['gemini-3.8-flash', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-2.5-flash', 'gemini-1.5-pro'];
+        // Try candidate models in order of best vision performance, stability & availability
+        const candidateModels = ['gemini-3.5-flash', 'gemini-3.7-flash', 'gemini-3.8-flash', 'gemini-flash-latest', 'gemini-2.5-flash'];
         let response: any = null;
         let lastErr: any = null;
 
