@@ -207,6 +207,30 @@ export default function App() {
     }
   }, [user]);
 
+  // Auto-sync Facebook Ads in background on load and periodically every 2 minutes
+  useEffect(() => {
+    if (user?.role === 'manager') {
+      const syncAds = () => {
+        fetch('/api/sync-fb-ads', { 
+          method: 'POST', 
+          headers: { 'Content-Type': 'application/json' } 
+        })
+          .then(r => r.json())
+          .then(d => {
+            if (d?.success) console.log('[AutoSync FB Ads] Realtime ads updated successfully');
+          })
+          .catch(() => {});
+      };
+
+      // Initial sync on mount
+      syncAds();
+
+      // Poll every 2 minutes while app is active
+      const timer = setInterval(syncAds, 120000);
+      return () => clearInterval(timer);
+    }
+  }, [user?.role]);
+
   // Log current user ID and their transactions as requested
   useEffect(() => {
     if (user) {

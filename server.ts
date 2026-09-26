@@ -38,67 +38,34 @@ async function fetchAndSaveAdSpend() {
       {
         params: {
           fields: "spend",
-          date_preset: "today",
+          date_preset: "this_week_mon_today",
+          time_increment: 1,
           access_token: accessToken,
         },
       }
     );
 
-    const insights = response.data.data;
-    const spend = insights.length > 0 ? parseFloat(insights[0].spend) : 0;
-    const todayStr = new Intl.DateTimeFormat('sv-SE', {
-      timeZone: 'Asia/Ho_Chi_Minh',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit'
-    }).format(new Date());
+    const insights = response.data.data || [];
+    for (const item of insights) {
+      const dateStr = item.date_start;
+      const spend = parseFloat(item.spend) || 0;
 
-    // We also need revenue and operating costs to keep the history record consistent
-    // For the automated update, we'll try to fetch the latest known values or just update the spend
-    // Since we're on the server, we can query Firestore
-    
-    // 1. Get current sales to calculate revenue and commission for TODAY only
-    const salesSnap = await getDocs(query(collection(db, 'sales'), where('date', '==', todayStr)));
-    let totalRevenue = 0;
-    let totalCommission = 0;
-    salesSnap.forEach(doc => {
-      const data = doc.data();
-      totalRevenue += (Number(data.amount) || 0) + (Number(data.tip) || 0);
-      // Note: we need to ensure reader_commission and sale_commission are calculated or stored
-      // For now, we'll use a simplified calculation if they aren't in the doc
-      const amount = Number(data.amount) || 0;
-      const rComm = Number(data.reader_commission) || (amount * 0.3); // fallback to 30%
-      const sComm = Number(data.sale_commission) || (amount * 0.1);   // fallback to 10%
-      totalCommission += rComm + sComm;
-    });
+      await setDoc(doc(db, 'ad_history', dateStr), {
+        date: dateStr,
+        spend: spend,
+        updated_at: new Date().toISOString()
+      }, { merge: true });
+    }
 
-    // 2. Get operating costs for TODAY only
-    const costsSnap = await getDocs(query(collection(db, 'operating_costs'), where('date', '==', todayStr)));
-    let totalOperatingCosts = 0;
-    costsSnap.forEach(doc => {
-      totalOperatingCosts += Number(doc.data().amount) || 0;
-    });
-
-    // 3. Save to ad_history
-    await setDoc(doc(db, 'ad_history', todayStr), {
-      date: todayStr,
-      spend: spend,
-      revenue: totalRevenue,
-      operating_costs: totalOperatingCosts,
-      commission: totalCommission,
-      net_profit: totalRevenue - spend - totalOperatingCosts - totalCommission,
-      updated_at: new Date().toISOString()
-    }, { merge: true });
-
-    console.log(`[Cron] Successfully updated ad spend for ${todayStr}: ${spend}`);
+    console.log(`[Cron] Synced ${insights.length} days of ad spend into ad_history`);
   } catch (error: any) {
     console.error("[Cron] Error updating ad spend:", error.response?.data || error.message);
   }
 }
 
-// Schedule the task to run every 5 minutes for "real-time" updates
-cron.schedule("*/5 * * * *", () => {
-  console.log("[Cron] Running frequent ad spend update...");
+// Schedule the task to run every 2 minutes for real-time background sync
+cron.schedule("*/2 * * * *", () => {
+  console.log("[Cron] Running frequent ad spend update (every 2 minutes)...");
   fetchAndSaveAdSpend();
 }, {
   timezone: "Asia/Ho_Chi_Minh"
