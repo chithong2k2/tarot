@@ -236,6 +236,17 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({
   const grandTotal = totalAmount + totalTip;
   const avgOrderValue = filteredSales.length > 0 ? Math.round(grandTotal / filteredSales.length) : 0;
 
+  const staffCommission = useMemo(() => {
+    if (user.role === 'manager') return 0;
+    const commissionPercent = user.commission_percent || 0;
+    return (totalAmount * commissionPercent) / 100;
+  }, [user, totalAmount]);
+
+  const staffTotalIncome = useMemo(() => {
+    if (user.role === 'manager') return 0;
+    return staffCommission + (user.role === 'reader' ? totalTip : 0);
+  }, [user.role, staffCommission, totalTip]);
+
   // Pagination calculations
   const totalPages = Math.ceil(sortedSales.length / pageSize) || 1;
   const startIndex = (currentPage - 1) * pageSize;
@@ -349,10 +360,12 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-            Lịch Sử Giao Dịch
+            {user.role === 'manager' ? 'Lịch Sử Giao Dịch' : 'Lịch Sử Đơn Của Tôi'}
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 font-medium mt-1">
-            Nhật ký toàn bộ đơn hàng và phân chia doanh thu theo ca
+            {user.role === 'manager'
+              ? 'Nhật ký toàn bộ đơn hàng và phân chia doanh thu theo ca'
+              : 'Nhật ký các đơn hàng bạn đã thực hiện và hoa hồng nhận được'}
           </p>
         </div>
 
@@ -367,14 +380,16 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({
             <span>Xuất Excel</span>
           </button>
 
-          <button 
-            type="button"
-            onClick={() => setView('entry')}
-            className="px-5 py-2.5 rounded-2xl bg-[#6d28d9] hover:bg-[#5b21b6] text-white font-bold text-xs shadow-md shadow-purple-100 flex items-center gap-2 transition-all cursor-pointer shrink-0"
-          >
-            <Plus size={16} />
-            <span>Nhập Đơn Mới</span>
-          </button>
+          {(user.role === 'manager' || user.role === 'sale') && (
+            <button 
+              type="button"
+              onClick={() => setView('entry')}
+              className="px-5 py-2.5 rounded-2xl bg-[#6d28d9] hover:bg-[#5b21b6] text-white font-bold text-xs shadow-md shadow-purple-100 flex items-center gap-2 transition-all cursor-pointer shrink-0"
+            >
+              <Plus size={16} />
+              <span>Nhập Đơn Mới</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -383,7 +398,9 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({
         {/* Card 1: Doanh Thu */}
         <div className="bg-white p-4 sm:p-5 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between">
           <div className="flex items-center justify-between text-slate-400">
-            <span className="text-[11px] font-bold uppercase tracking-wider">Tổng Doanh Thu</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider">
+              {user.role === 'manager' ? 'Tổng Doanh Thu' : 'Doanh Thu Của Bạn'}
+            </span>
             <div className="w-8 h-8 rounded-xl bg-purple-50 text-[#6d28d9] flex items-center justify-center font-bold">
               💰
             </div>
@@ -392,14 +409,18 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({
             <p className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
               {formatPrice(totalAmount)}
             </p>
-            <p className="text-[11px] text-slate-400 font-medium mt-0.5">Tiền bán các gói Tarot</p>
+            <p className="text-[11px] text-slate-400 font-medium mt-0.5">
+              {user.role === 'manager' ? 'Tiền bán các gói Tarot' : 'Doanh số gói bạn phụ trách'}
+            </p>
           </div>
         </div>
 
         {/* Card 2: Tiền Tip */}
         <div className="bg-white p-4 sm:p-5 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between">
           <div className="flex items-center justify-between text-slate-400">
-            <span className="text-[11px] font-bold uppercase tracking-wider">Tổng Tiền Tip</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider">
+              {user.role === 'reader' ? 'Tiền Tip Của Bạn' : 'Tổng Tiền Tip'}
+            </span>
             <div className="w-8 h-8 rounded-xl bg-emerald-50 text-[#059669] flex items-center justify-center font-bold">
               🎁
             </div>
@@ -408,14 +429,18 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({
             <p className="text-xl sm:text-2xl font-black text-[#047857] tracking-tight">
               {formatPrice(totalTip)}
             </p>
-            <p className="text-[11px] text-slate-400 font-medium mt-0.5">Khách tip riêng cho Reader</p>
+            <p className="text-[11px] text-slate-400 font-medium mt-0.5">
+              {user.role === 'reader' ? '100% tiền tip thuộc về bạn' : 'Khách tip riêng cho Reader'}
+            </p>
           </div>
         </div>
 
         {/* Card 3: Số Lượng Đơn */}
         <div className="bg-white p-4 sm:p-5 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between">
           <div className="flex items-center justify-between text-slate-400">
-            <span className="text-[11px] font-bold uppercase tracking-wider">Số Giao Dịch</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider">
+              {user.role === 'manager' ? 'Số Giao Dịch' : 'Số Đơn Của Bạn'}
+            </span>
             <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
               📋
             </div>
@@ -428,19 +453,23 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({
           </div>
         </div>
 
-        {/* Card 4: Giá Trị Trung Bình */}
+        {/* Card 4: Giá Trị Trung Bình hoặc Hoa Hồng */}
         <div className="bg-white p-4 sm:p-5 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between">
           <div className="flex items-center justify-between text-slate-400">
-            <span className="text-[11px] font-bold uppercase tracking-wider">Trung Bình / Đơn</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider">
+              {user.role === 'manager' ? 'Trung Bình / Đơn' : 'Hoa Hồng Của Bạn'}
+            </span>
             <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
-              🎯
+              {user.role === 'manager' ? '🎯' : '💎'}
             </div>
           </div>
           <div className="mt-3">
             <p className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-              {formatPrice(avgOrderValue)}
+              {user.role === 'manager' ? formatPrice(avgOrderValue) : formatPrice(staffCommission)}
             </p>
-            <p className="text-[11px] text-slate-400 font-medium mt-0.5">Giá trị mỗi lượt coi bài</p>
+            <p className="text-[11px] text-slate-400 font-medium mt-0.5">
+              {user.role === 'manager' ? 'Giá trị mỗi lượt coi bài' : `${user.commission_percent || 0}% theo doanh thu gói`}
+            </p>
           </div>
         </div>
       </div>
@@ -470,33 +499,37 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({
             )}
           </div>
 
-          {/* Reader filter */}
-          <div className="w-full lg:w-56 shrink-0">
-            <select 
-              value={filterReader}
-              onChange={(e) => setFilterReader(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 bg-slate-50/50 text-sm font-medium text-slate-800 outline-none focus:ring-2 focus:ring-[#7c3aed] focus:bg-white cursor-pointer"
-            >
-              <option value="All">Tất cả Reader</option>
-              {readers.map(r => (
-                <option key={r.id} value={r.id}>{r.full_name}</option>
-              ))}
-            </select>
-          </div>
+          {/* Reader filter (manager only) */}
+          {user.role === 'manager' && (
+            <div className="w-full lg:w-56 shrink-0">
+              <select 
+                value={filterReader}
+                onChange={(e) => setFilterReader(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 bg-slate-50/50 text-sm font-medium text-slate-800 outline-none focus:ring-2 focus:ring-[#7c3aed] focus:bg-white cursor-pointer"
+              >
+                <option value="All">Tất cả Reader</option>
+                {readers.map(r => (
+                  <option key={r.id} value={r.id}>{r.full_name}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
-          {/* Sale filter */}
-          <div className="w-full lg:w-56 shrink-0">
-            <select 
-              value={filterSale}
-              onChange={(e) => setFilterSale(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 bg-slate-50/50 text-sm font-medium text-slate-800 outline-none focus:ring-2 focus:ring-[#7c3aed] focus:bg-white cursor-pointer"
-            >
-              <option value="All">Tất cả Sale</option>
-              {salesStaff.map(s => (
-                <option key={s.id} value={s.id}>{s.full_name}</option>
-              ))}
-            </select>
-          </div>
+          {/* Sale filter (manager only) */}
+          {user.role === 'manager' && (
+            <div className="w-full lg:w-56 shrink-0">
+              <select 
+                value={filterSale}
+                onChange={(e) => setFilterSale(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 bg-slate-50/50 text-sm font-medium text-slate-800 outline-none focus:ring-2 focus:ring-[#7c3aed] focus:bg-white cursor-pointer"
+              >
+                <option value="All">Tất cả Sale</option>
+                {salesStaff.map(s => (
+                  <option key={s.id} value={s.id}>{s.full_name}</option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
 
         {/* Row 2: Date Presets & Custom Range */}
@@ -639,7 +672,9 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({
                   </button>
                 </th>
 
-                <th className="py-4 px-6 w-12 text-center"></th>
+                {user.role === 'manager' && (
+                  <th className="py-4 px-6 w-12 text-center"></th>
+                )}
               </tr>
             </thead>
 
@@ -716,40 +751,40 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({
                       </span>
                     </td>
 
-                    {/* ACTION MENU (...) */}
-                    <td className="py-4 px-6 text-center relative">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setActiveMenuId(activeMenuId === s.id ? null : s.id);
-                        }}
-                        className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
-                        title="Tùy chọn"
-                      >
-                        <MoreHorizontal size={18} />
-                      </button>
-
-                      {/* Floating Dropdown Menu */}
-                      {activeMenuId === s.id && (
-                        <div 
-                          ref={menuRef}
-                          className="absolute right-6 top-12 w-44 bg-white rounded-2xl shadow-xl border border-slate-100 py-1.5 z-30 animate-in fade-in zoom-in-95 duration-100"
+                    {/* ACTION MENU (...) - Manager only */}
+                    {user.role === 'manager' && (
+                      <td className="py-4 px-6 text-center relative">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveMenuId(activeMenuId === s.id ? null : s.id);
+                          }}
+                          className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                          title="Tùy chọn"
                         >
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setActiveMenuId(null);
-                              setEditingSale(s);
-                              setView('entry');
-                            }}
-                            className="w-full px-4 py-2.5 text-left text-xs font-bold text-slate-700 hover:bg-[#f5f3ff] hover:text-[#6d28d9] flex items-center gap-2.5 transition-colors cursor-pointer"
+                          <MoreHorizontal size={18} />
+                        </button>
+
+                        {/* Floating Dropdown Menu */}
+                        {activeMenuId === s.id && (
+                          <div 
+                            ref={menuRef}
+                            className="absolute right-6 top-12 w-44 bg-white rounded-2xl shadow-xl border border-slate-100 py-1.5 z-30 animate-in fade-in zoom-in-95 duration-100"
                           >
-                            <Edit2 size={14} />
-                            <span>Chỉnh sửa đơn</span>
-                          </button>
-                          
-                          {user.role === 'manager' && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setActiveMenuId(null);
+                                setEditingSale(s);
+                                setView('entry');
+                              }}
+                              className="w-full px-4 py-2.5 text-left text-xs font-bold text-slate-700 hover:bg-[#f5f3ff] hover:text-[#6d28d9] flex items-center gap-2.5 transition-colors cursor-pointer"
+                            >
+                              <Edit2 size={14} />
+                              <span>Chỉnh sửa đơn</span>
+                            </button>
+                            
                             <button
                               type="button"
                               onClick={() => {
@@ -761,10 +796,10 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({
                               <Trash2 size={14} />
                               <span>Xóa đơn hàng</span>
                             </button>
-                          )}
-                        </div>
-                      )}
-                    </td>
+                          </div>
+                        )}
+                      </td>
+                    )}
                   </tr>
                 );
               })}

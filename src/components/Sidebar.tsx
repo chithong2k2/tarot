@@ -129,14 +129,37 @@ export const Sidebar: React.FC<SidebarProps> = ({
               />
             </>
           )}
-          {(user.role === 'reader' || user.role === 'sale') && (
+
+          {user.role === 'sale' && (
             <SidebarItem 
-              icon={<CalendarCheck size={20} />} 
-              label="Đăng Ký Ca" 
-              active={view === 'register_shift'} 
-              onClick={() => { setView('register_shift'); setIsSidebarOpen(false); }} 
+              icon={<PlusCircle size={20} />} 
+              label="Nhập Doanh Thu" 
+              active={view === 'entry'} 
+              onClick={() => { 
+                setEditingSale(null);
+                setView('entry'); 
+                setIsSidebarOpen(false); 
+              }} 
             />
           )}
+
+          {(user.role === 'reader' || user.role === 'sale') && (
+            <>
+              <SidebarItem 
+                icon={<TrendingUp size={20} />} 
+                label="Lịch Sử Đơn Của Tôi" 
+                active={view === 'sales_history'} 
+                onClick={() => { setView('sales_history'); setIsSidebarOpen(false); }} 
+              />
+              <SidebarItem 
+                icon={<CalendarCheck size={20} />} 
+                label="Đăng Ký Ca" 
+                active={view === 'register_shift'} 
+                onClick={() => { setView('register_shift'); setIsSidebarOpen(false); }} 
+              />
+            </>
+          )}
+
           <SidebarItem 
             icon={<Settings size={20} />} 
             label="Cài Đặt" 

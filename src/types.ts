@@ -85,6 +85,14 @@ export interface ShiftRegistration {
   day_of_week: 'Thứ 2' | 'Thứ 3' | 'Thứ 4' | 'Thứ 5' | 'Thứ 6' | 'Thứ 7' | 'Chủ nhật';
 }
 
+export interface PackageOption {
+  id: string;
+  name: string;
+  label: string;
+  price: number;
+  popular?: boolean;
+}
+
 export interface SystemSettings {
   id: string;
   is_locked: boolean;
@@ -95,6 +103,8 @@ export interface SystemSettings {
   fb_access_token?: string;
   fb_ad_account_id?: string;
   operating_cost_rate?: number;
+  packages?: PackageOption[];
+  gemini_api_key?: string;
 }
 
 export interface AdProfitData {

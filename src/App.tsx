@@ -179,9 +179,15 @@ export default function App() {
 
   // Update summary whenever relevant data changes
   useEffect(() => {
-    const newSummary = calculateDashboardSummary(sales, users, costs, adHistory);
+    const isManager = user?.role === 'manager';
+    const newSummary = calculateDashboardSummary(
+      sales, 
+      users, 
+      isManager ? costs : [], 
+      isManager ? adHistory : []
+    );
     setSummary(newSummary);
-  }, [sales, users, costs, adHistory]);
+  }, [sales, users, costs, adHistory, user?.role]);
 
   const fetchData = async () => {
     // Data is now handled by real-time listeners
@@ -205,6 +211,22 @@ export default function App() {
       fetchData();
     }
   }, [user]);
+
+  // Guard unauthorized views for staff
+  useEffect(() => {
+    if (!user) return;
+    if (user.role === 'reader') {
+      const forbidden = ['staff', 'shifts', 'payroll', 'costs', 'entry'];
+      if (forbidden.includes(view)) {
+        setView('dashboard');
+      }
+    } else if (user.role === 'sale') {
+      const forbidden = ['staff', 'shifts', 'payroll', 'costs'];
+      if (forbidden.includes(view)) {
+        setView('dashboard');
+      }
+    }
+  }, [user?.role, view]);
 
   // Auto-sync Facebook Ads in background on load and periodically every 2 minutes
   useEffect(() => {

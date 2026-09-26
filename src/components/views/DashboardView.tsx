@@ -319,6 +319,30 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     };
   }, [user, filteredSalesByDay]);
 
+  // Personal daily chart data for reader / sale
+  const staffDailyStats = React.useMemo(() => {
+    if (user.role === 'manager') return summary?.dailyStats || [];
+
+    return weekDays.map(d => {
+      const daySales = sales.filter(s => getDayName(s.date) === d.name);
+      const pkgAmount = daySales.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
+      const tipAmount = daySales.reduce((sum, s) => sum + (Number(s.tip) || 0), 0);
+      const revenue = pkgAmount + tipAmount;
+      const commissionPercent = user.commission_percent || 0;
+      const commission = (pkgAmount * commissionPercent) / 100 + (user.role === 'reader' ? tipAmount : 0);
+
+      return {
+        name: d.name,
+        revenue,
+        profit: commission,
+        commission,
+        adSpend: 0
+      };
+    });
+  }, [user, summary, sales, weekDays]);
+
+  const activeDailyStats = user.role === 'manager' ? (summary?.dailyStats || []) : staffDailyStats;
+
   // ROAS Badge Configuration
   const roasBadge = React.useMemo(() => {
     if (currentDayStats.roas === null) {
@@ -725,7 +749,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Modern Chart (Recharts Pro) */}
-        <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-100 card-shadow flex flex-col justify-between">
+        <div className={`${user.role === 'manager' ? 'lg:col-span-2' : 'lg:col-span-3'} bg-white p-6 rounded-2xl border border-slate-100 card-shadow flex flex-col justify-between`}>
           {/* Header & Controls */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
             <div>
@@ -836,7 +860,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <div className="h-[340px] w-full">
             <ResponsiveContainer width="100%" height="100%">
               {chartType === 'area' ? (
-                <AreaChart data={summary?.dailyStats || []} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                <AreaChart data={activeDailyStats} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
                   <defs>
                     <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#6366f1" stopOpacity={0.35}/>
@@ -992,7 +1016,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   )}
                 </AreaChart>
               ) : (
-                <BarChart data={summary?.dailyStats || []} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                <BarChart data={activeDailyStats} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                   <ReferenceLine y={0} stroke="#cbd5e1" strokeDasharray="3 3" />
                   <XAxis 
@@ -1074,7 +1098,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       radius={[6, 6, 0, 0]} 
                       maxBarSize={36}
                     >
-                      {summary?.dailyStats?.map((entry, index) => (
+                      {activeDailyStats.map((entry, index) => (
                         <Cell 
                           key={`bar-rev-${index}`} 
                           fill="#6366f1" 
@@ -1091,7 +1115,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       radius={[6, 6, 0, 0]} 
                       maxBarSize={36}
                     >
-                      {summary?.dailyStats?.map((entry, index) => (
+                      {activeDailyStats.map((entry, index) => (
                         <Cell 
                           key={`bar-profit-${index}`} 
                           fill="#10b981" 
@@ -1108,7 +1132,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       radius={[6, 6, 0, 0]} 
                       maxBarSize={36}
                     >
-                      {summary?.dailyStats?.map((entry, index) => (
+                      {activeDailyStats.map((entry, index) => (
                         <Cell 
                           key={`bar-ads-${index}`} 
                           fill="#f43f5e" 
@@ -1125,7 +1149,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       radius={[6, 6, 0, 0]} 
                       maxBarSize={36}
                     >
-                      {summary?.dailyStats?.map((entry, index) => (
+                      {activeDailyStats.map((entry, index) => (
                         <Cell 
                           key={`bar-comm-${index}`} 
                           fill="#a855f7" 

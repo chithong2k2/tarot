@@ -92,6 +92,14 @@ export const SaleEntryView: React.FC<SaleEntryViewProps> = ({
   const [saveAndContinueLoading, setSaveAndContinueLoading] = useState(false);
   const customerInputRef = useRef<HTMLInputElement>(null);
 
+  // Dynamic packages from systemSettings or fallback to default
+  const activePackages: PackageOption[] = React.useMemo(() => {
+    if (systemSettings?.packages && Array.isArray(systemSettings.packages) && systemSettings.packages.length > 0) {
+      return systemSettings.packages;
+    }
+    return PACKAGE_TILES;
+  }, [systemSettings?.packages]);
+
   // Helper map users
   const userMap = new Map<string, User>();
   users.forEach(u => userMap.set(u.id, u));
@@ -288,7 +296,7 @@ export const SaleEntryView: React.FC<SaleEntryViewProps> = ({
         }
       });
 
-      const matchedTile = PACKAGE_TILES.find(p => p.price === amount);
+      const matchedTile = activePackages.find(p => p.price === amount);
       const packageName = matchedTile ? matchedTile.label : `${amount / 1000}k`;
 
       const parsed: ParsedQuickEntry = {
@@ -722,9 +730,9 @@ export const SaleEntryView: React.FC<SaleEntryViewProps> = ({
                   </div>
                 </div>
 
-                {/* Package Tiles Grid 4x2 */}
+                {/* Package Tiles Grid */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1">
-                  {PACKAGE_TILES.map(pkg => {
+                  {activePackages.map(pkg => {
                     const selected = isPackageSelected(pkg);
 
                     return (

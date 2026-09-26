@@ -29,14 +29,20 @@ import {
   Download,
   Upload,
   Archive,
-  FileJson
+  FileJson,
+  Plus,
+  Trash2,
+  Edit2,
+  RotateCcw,
+  Package as PackageIcon
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { User, SystemSettings } from '../../types';
+import { User, SystemSettings, PackageOption } from '../../types';
 import { firebaseService } from '../../services/firebaseService';
 import { apiService } from '../../services/api';
 import { VIETNAM_BANKS, generateVietQRUrl } from '../../utils/vietqr';
 import { usePrivacyMode } from '../../utils/privacy';
+import { PACKAGE_TILES, formatPrice } from './SaleEntryView';
 
 interface SettingsViewProps {
   user: User;
@@ -54,7 +60,48 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onSyncToSheets
 }) => {
   // Navigation tabs
-  const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'admin'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'admin' | 'packages'>('profile');
+
+  // Packages Management States
+  const [packagesList, setPackagesList] = useState<PackageOption[]>(
+    systemSettings?.packages && systemSettings.packages.length > 0 
+      ? systemSettings.packages 
+      : PACKAGE_TILES
+  );
+  const [packageSaveLoading, setPackageSaveLoading] = useState(false);
+  const [packageSuccessMsg, setPackageSuccessMsg] = useState<string | null>(null);
+  const [showPackageModal, setShowPackageModal] = useState(false);
+  const [editingPackageId, setEditingPackageId] = useState<string | null>(null);
+  const [packageFormData, setPackageFormData] = useState<{
+    name: string;
+    label: string;
+    price: number;
+    popular: boolean;
+  }>({
+    name: '',
+    label: '',
+    price: 50000,
+    popular: false
+  });
+  const [packageToDelete, setPackageToDelete] = useState<PackageOption | null>(null);
+
+  // AI Menu Scanner States
+  const [showAiUploadModal, setShowAiUploadModal] = useState(false);
+  const [menuImagePreview, setMenuImagePreview] = useState<string | null>(null);
+  const [menuImageFile, setMenuImageFile] = useState<File | null>(null);
+  const [geminiApiKeyInput, setGeminiApiKeyInput] = useState(systemSettings?.gemini_api_key || localStorage.getItem('tarot_gemini_key') || '');
+  const [aiAnalyzing, setAiAnalyzing] = useState(false);
+  const [aiAnalysisMethod, setAiAnalysisMethod] = useState<'gemini' | 'ocr' | null>(null);
+  const [aiDetectedPackages, setAiDetectedPackages] = useState<PackageOption[]>([]);
+  const [aiRawText, setAiRawText] = useState<string | null>(null);
+  const [aiErrorMsg, setAiErrorMsg] = useState<string | null>(null);
+
+  // Sync package list if settings update
+  useEffect(() => {
+    if (systemSettings?.packages && systemSettings.packages.length > 0) {
+      setPackagesList(systemSettings.packages);
+    }
+  }, [systemSettings?.packages]);
 
   // User Form Data
   const [formData, setFormData] = useState({
@@ -367,6 +414,189 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     }
   };
 
+  // --- Package Pricing Handlers ---
+  const handleSavePackages = async (newPackages: PackageOption[]) => {
+    setPackageSaveLoading(true);
+    setPackageSuccessMsg(null);
+    try {
+      const updated: Partial<SystemSettings> = {
+        packages: newPackages
+      };
+      await firebaseService.updateSettings(updated);
+      if (systemSettings) {
+        onUpdateSettings({
+          ...systemSettings,
+          packages: newPackages
+        });
+      }
+      setPackagesList(newPackages);
+      setPackageSuccessMsg('Đã lưu bảng giá gói dịch vụ thành công!');
+      setTimeout(() => setPackageSuccessMsg(null), 3000);
+    } catch (err: any) {
+      alert('Lỗi khi lưu bảng giá: ' + (err?.message || String(err)));
+    } finally {
+      setPackageSaveLoading(false);
+    }
+  };
+
+  const handleOpenAddPackage = () => {
+    setEditingPackageId(null);
+    setPackageFormData({
+      name: '',
+      label: '',
+      price: 50000,
+      popular: false
+    });
+    setShowPackageModal(true);
+  };
+
+  const handleOpenEditPackage = (pkg: PackageOption) => {
+    setEditingPackageId(pkg.id);
+    setPackageFormData({
+      name: pkg.name,
+      label: pkg.label,
+      price: pkg.price,
+      popular: !!pkg.popular
+    });
+    setShowPackageModal(true);
+  };
+
+  const handleSubmitPackage = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!packageFormData.name.trim()) {
+      alert('Vui lòng nhập tên gói dịch vụ');
+      return;
+    }
+    if (!packageFormData.price || Number(packageFormData.price) <= 0) {
+      alert('Vui lòng nhập giá tiền hợp lệ (> 0đ)');
+      return;
+    }
+
+    let updatedList: PackageOption[];
+    if (editingPackageId) {
+      updatedList = packagesList.map(p => p.id === editingPackageId ? {
+        ...p,
+        name: packageFormData.name.trim(),
+        label: packageFormData.label.trim() || packageFormData.name.trim(),
+        price: Number(packageFormData.price),
+        popular: packageFormData.popular
+      } : p);
+    } else {
+      const newPkg: PackageOption = {
+        id: 'pkg_' + Date.now(),
+        name: packageFormData.name.trim(),
+        label: packageFormData.label.trim() || packageFormData.name.trim(),
+        price: Number(packageFormData.price),
+        popular: packageFormData.popular
+      };
+      updatedList = [...packagesList, newPkg];
+    }
+
+    setShowPackageModal(false);
+    handleSavePackages(updatedList);
+  };
+
+  const handleDeletePackageConfirm = (pkgId: string) => {
+    const updatedList = packagesList.filter(p => p.id !== pkgId);
+    setPackageToDelete(null);
+    handleSavePackages(updatedList);
+  };
+
+  const handleTogglePopular = (pkgId: string) => {
+    const updatedList = packagesList.map(p => p.id === pkgId ? { ...p, popular: !p.popular } : p);
+    handleSavePackages(updatedList);
+  };
+
+  const handleResetDefaultPackages = () => {
+    if (window.confirm('Khôi phục danh sách các gói Tarot mặc định của shop?')) {
+      handleSavePackages(PACKAGE_TILES);
+    }
+  };
+
+  // --- AI Menu Scanner Handlers ---
+  const handleMenuImageSelect = (file: File) => {
+    setMenuImageFile(file);
+    setAiErrorMsg(null);
+    setAiDetectedPackages([]);
+    setAiRawText(null);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setMenuImagePreview(e.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleStartAiAnalysis = async () => {
+    if (!menuImagePreview) {
+      alert('Vui lòng chọn ảnh bảng giá!');
+      return;
+    }
+
+    setAiAnalyzing(true);
+    setAiErrorMsg(null);
+    try {
+      if (geminiApiKeyInput) {
+        localStorage.setItem('tarot_gemini_key', geminiApiKeyInput);
+      }
+      const res = await apiService.analyzePriceMenu(
+        menuImagePreview, 
+        menuImageFile?.type || 'image/jpeg', 
+        geminiApiKeyInput
+      );
+
+      if (res.success && Array.isArray(res.packages) && res.packages.length > 0) {
+        setAiDetectedPackages(res.packages);
+        setAiAnalysisMethod(res.method || 'gemini');
+        setAiRawText(res.rawText || null);
+      } else {
+        setAiErrorMsg(res.message || 'Không tìm thấy gói giá rõ ràng trong ảnh.');
+        if (res.rawText) setAiRawText(res.rawText);
+      }
+    } catch (err: any) {
+      setAiErrorMsg('Lỗi phân tích: ' + (err?.message || String(err)));
+    } finally {
+      setAiAnalyzing(false);
+    }
+  };
+
+  const handleApplyAiPackages = async (mode: 'overwrite' | 'append') => {
+    if (aiDetectedPackages.length === 0) return;
+
+    let updatedList: PackageOption[];
+    if (mode === 'overwrite') {
+      updatedList = [...aiDetectedPackages];
+    } else {
+      const existingNames = new Set(packagesList.map(p => p.name.toLowerCase()));
+      const toAdd = aiDetectedPackages.filter(p => !existingNames.has(p.name.toLowerCase()));
+      updatedList = [...packagesList, ...toAdd];
+    }
+
+    await handleSavePackages(updatedList);
+    setShowAiUploadModal(false);
+    setMenuImagePreview(null);
+    setMenuImageFile(null);
+    setAiDetectedPackages([]);
+  };
+
+  const handleUpdateDetectedPackage = (index: number, field: keyof PackageOption, value: any) => {
+    setAiDetectedPackages(prev => prev.map((p, idx) => idx === index ? { ...p, [field]: value } : p));
+  };
+
+  const handleRemoveDetectedPackage = (index: number) => {
+    setAiDetectedPackages(prev => prev.filter((_, idx) => idx !== index));
+  };
+
+  const handleAddManualDetectedPackage = () => {
+    const newPkg: PackageOption = {
+      id: 'pkg_manual_' + Date.now(),
+      name: 'gói mới',
+      label: 'Gói Mới',
+      price: 50000,
+      popular: false
+    };
+    setAiDetectedPackages(prev => [...prev, newPkg]);
+  };
+
   // Admin: Test Meta Ads Connection
   const handleTestMetaAds = async () => {
     setFbTestLoading(true);
@@ -640,6 +870,26 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             <span>Cấu Hình Quản Trị Hệ Thống</span>
             <span className="px-2 py-0.5 rounded-full text-[10px] bg-white/20 text-white font-extrabold">
               Admin
+            </span>
+          </button>
+        )}
+
+        {user.role === 'manager' && (
+          <button
+            type="button"
+            onClick={() => setActiveTab('packages')}
+            className={`px-5 py-3 rounded-xl text-sm font-bold transition-all flex items-center gap-2.5 whitespace-nowrap shrink-0 ${
+              activeTab === 'packages' 
+                ? 'bg-purple-600 text-white shadow-md shadow-purple-200' 
+                : 'text-purple-800 hover:text-purple-900 hover:bg-purple-50'
+            }`}
+          >
+            <Sparkles size={18} />
+            <span>Bảng Giá Gói Dịch Vụ</span>
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
+              activeTab === 'packages' ? 'bg-white/25 text-white' : 'bg-purple-100 text-purple-700'
+            }`}>
+              {packagesList.length} gói
             </span>
           </button>
         )}
@@ -1443,7 +1693,650 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         </div>
       )}
 
-      {/* Password Change Modal */}
+      {/* ==================== TAB 4: PACKAGES PRICING CONFIG ==================== */}
+      {activeTab === 'packages' && user.role === 'manager' && (
+        <div className="space-y-6">
+          {/* Header Card */}
+          <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-100 shadow-sm space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center space-x-3">
+                <div className="w-12 h-12 rounded-2xl bg-purple-50 flex items-center justify-center text-purple-600">
+                  <Sparkles size={24} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900">Bảng Giá Gói Dịch Vụ Tarot</h3>
+                  <p className="text-xs text-slate-400">Tùy biến tên gói, giá niêm yết (VNĐ) và gắn nhãn Phổ biến để tự động hiển thị trên form Nhập Doanh Thu</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={handleResetDefaultPackages}
+                  disabled={packageSaveLoading}
+                  className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-bold hover:bg-slate-50 transition-colors text-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  title="Khôi phục về 7 gói Tarot mặc định của shop"
+                >
+                  <RotateCcw size={14} />
+                  <span>Khôi Phục Mặc Định</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAiUploadModal(true);
+                    setAiErrorMsg(null);
+                  }}
+                  className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold transition-all shadow-md shadow-purple-200 text-xs flex items-center gap-1.5 cursor-pointer"
+                  title="Tự động phân tích ảnh bảng giá Tarot bằng AI & OCR"
+                >
+                  <Camera size={14} />
+                  <span>Quét Bảng Giá Từ Ảnh (AI)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleOpenAddPackage}
+                  disabled={packageSaveLoading}
+                  className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold transition-all shadow-md shadow-purple-200 text-xs flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Plus size={15} />
+                  <span>Thêm Gói Mới</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Notification message if saved */}
+            {packageSuccessMsg && (
+              <motion.div 
+                initial={{ opacity: 0, y: -5 }} 
+                animate={{ opacity: 1, y: 0 }} 
+                className="p-3.5 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold rounded-2xl flex items-center gap-2"
+              >
+                <CheckCircle2 size={16} className="text-emerald-600" />
+                <span>{packageSuccessMsg}</span>
+              </motion.div>
+            )}
+
+            {/* Packages Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {packagesList.map((pkg, idx) => (
+                <div 
+                  key={pkg.id || idx}
+                  className={`relative p-5 rounded-2xl border transition-all flex flex-col justify-between space-y-4 ${
+                    pkg.popular 
+                      ? 'border-purple-300 bg-purple-50/30 shadow-sm' 
+                      : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-xs'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      {pkg.popular && (
+                        <span className="inline-block px-2 py-0.5 rounded-md bg-[#f97316] text-white text-[9px] font-black uppercase tracking-wider mb-1.5 shadow-2xs">
+                          ★ PHỔ BIẾN
+                        </span>
+                      )}
+                      <h4 className="text-base font-extrabold text-slate-900 tracking-tight">{pkg.label || pkg.name}</h4>
+                      <p className="text-xs text-slate-400 mt-0.5">Mã gói: <span className="font-mono text-slate-600">{pkg.name}</span></p>
+                    </div>
+
+                    <span className="w-6 h-6 rounded-full bg-slate-100 text-slate-500 font-bold text-xs flex items-center justify-center shrink-0">
+                      {idx + 1}
+                    </span>
+                  </div>
+
+                  <div>
+                    <p className="text-xs text-slate-400 uppercase font-bold tracking-wider">Giá Niêm Yết</p>
+                    <p className="text-xl font-black text-purple-700 tracking-tight mt-0.5">
+                      {formatPrice(pkg.price)}
+                    </p>
+                  </div>
+
+                  {/* Actions Bar */}
+                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleTogglePopular(pkg.id)}
+                      className={`text-[11px] font-bold px-2.5 py-1 rounded-lg transition-colors cursor-pointer ${
+                        pkg.popular 
+                          ? 'bg-amber-100 text-amber-800 hover:bg-amber-200' 
+                          : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                      }`}
+                      title="Bật/Tắt huy hiệu phổ biến"
+                    >
+                      {pkg.popular ? '★ Đang phổ biến' : '☆ Đặt phổ biến'}
+                    </button>
+
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEditPackage(pkg)}
+                        className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
+                        title="Chỉnh sửa gói"
+                      >
+                        <Edit2 size={15} />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setPackageToDelete(pkg)}
+                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                        title="Xóa gói"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Helper callout */}
+            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 text-xs text-slate-600 flex items-start gap-3">
+              <Sparkles size={18} className="text-purple-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold text-slate-800">Mẹo cho Tarot Shop:</p>
+                <p className="mt-0.5 text-slate-500">
+                  Gói được đánh dấu <strong>Phổ biến</strong> sẽ có nhãn cam nổi bật trên màn hình Nhập Doanh Thu, giúp Reader và Sale chốt nhanh với khách mà không cần gõ phím.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add / Edit Package Modal */}
+      <AnimatePresence>
+        {showPackageModal && (
+          <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden"
+            >
+              <div className="bg-purple-600 p-6 text-white flex justify-between items-center">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 bg-white/20 rounded-xl">
+                    <Sparkles size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold">
+                      {editingPackageId ? 'Chỉnh Sửa Gói Dịch Vụ' : 'Thêm Gói Dịch Vụ Mới'}
+                    </h3>
+                    <p className="text-purple-100 text-xs mt-0.5">Cập nhật bảng giá dịch vụ cho shop</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowPackageModal(false)}
+                  className="text-white/70 hover:text-white transition-colors"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <form onSubmit={handleSubmitPackage} className="p-6 space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Tên gói (Mã hiển thị) <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={packageFormData.name}
+                    onChange={e => setPackageFormData({ 
+                      ...packageFormData, 
+                      name: e.target.value,
+                      label: packageFormData.label ? packageFormData.label : e.target.value
+                    })}
+                    placeholder="VD: 5 câu hoặc Trọn gói 1h"
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-purple-500 text-sm font-medium"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Nhãn hiển thị trên nút chọn <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={packageFormData.label}
+                    onChange={e => setPackageFormData({ ...packageFormData, label: e.target.value })}
+                    placeholder="VD: 5 Câu"
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-purple-500 text-sm font-medium"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Giá tiền (VNĐ) <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    min="1000"
+                    step="1000"
+                    required
+                    value={packageFormData.price || ''}
+                    onChange={e => setPackageFormData({ ...packageFormData, price: Number(e.target.value) || 0 })}
+                    placeholder="VD: 100000"
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-purple-500 text-sm font-bold text-purple-700"
+                  />
+                  {packageFormData.price > 0 && (
+                    <p className="text-xs text-slate-500 font-semibold mt-1">
+                      Hiển thị: <strong className="text-purple-600">{formatPrice(packageFormData.price)}</strong>
+                    </p>
+                  )}
+                </div>
+
+                <div className="pt-2">
+                  <label className="flex items-center gap-3 p-3 bg-purple-50/60 rounded-xl border border-purple-200/70 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={packageFormData.popular}
+                      onChange={e => setPackageFormData({ ...packageFormData, popular: e.target.checked })}
+                      className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500"
+                    />
+                    <div>
+                      <span className="text-xs font-bold text-slate-800">Đánh dấu là gói Phổ Biến</span>
+                      <p className="text-[11px] text-slate-500">Hiển thị badge cam nổi bật để Sale & Reader ưu tiên tư vấn</p>
+                    </div>
+                  </label>
+                </div>
+
+                <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setShowPackageModal(false)}
+                    className="px-4 py-2.5 rounded-xl text-slate-600 font-bold hover:bg-slate-100 text-xs transition-colors cursor-pointer"
+                  >
+                    Hủy Bỏ
+                  </button>
+
+                  <button
+                    type="submit"
+                    disabled={packageSaveLoading}
+                    className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs transition-all shadow-md shadow-purple-200 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    <Save size={14} />
+                    <span>{editingPackageId ? 'Cập Nhật Gói' : 'Thêm Vào Bảng Giá'}</span>
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Delete Package Confirmation Modal */}
+      <AnimatePresence>
+        {packageToDelete && (
+          <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden p-6 space-y-4"
+            >
+              <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto">
+                <Trash2 size={24} />
+              </div>
+              <div className="text-center space-y-1">
+                <h3 className="text-base font-bold text-slate-900">Xóa gói dịch vụ?</h3>
+                <p className="text-xs text-slate-500">
+                  Bạn có chắc muốn xóa gói <strong className="text-slate-800">"{packageToDelete.label}"</strong> ({formatPrice(packageToDelete.price)}) khỏi bảng giá?
+                </p>
+              </div>
+              <div className="flex gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setPackageToDelete(null)}
+                  className="flex-1 py-2.5 rounded-xl bg-slate-100 text-slate-600 font-bold hover:bg-slate-200 text-xs transition-colors"
+                >
+                  Giữ Lại
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDeletePackageConfirm(packageToDelete.id)}
+                  disabled={packageSaveLoading}
+                  className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs transition-colors shadow-sm shadow-rose-200"
+                >
+                  Xác Nhận Xóa
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* AI Menu Scanner & Upload Modal */}
+      <AnimatePresence>
+        {showAiUploadModal && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden my-auto max-h-[90vh] flex flex-col"
+            >
+              {/* Modal Header */}
+              <div className="bg-gradient-to-r from-purple-700 via-indigo-700 to-purple-800 p-5 sm:p-6 text-white flex justify-between items-center shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-white/20 rounded-2xl backdrop-blur-xs">
+                    <Sparkles size={22} className="text-amber-300" />
+                  </div>
+                  <div>
+                    <h3 className="text-base sm:text-lg font-bold flex items-center gap-2">
+                      <span>Quét & Tự Nhập Bảng Giá Từ Ảnh</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-400 text-purple-950 font-black tracking-wider uppercase">
+                        AI Vision
+                      </span>
+                    </h3>
+                    <p className="text-purple-100 text-xs mt-0.5">
+                      Tải ảnh menu giá Tarot, hệ thống AI sẽ tự động phân tích và trích xuất bảng giá vào hệ thống
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowAiUploadModal(false)}
+                  className="text-white/70 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* Modal Content - Scrollable */}
+              <div className="p-5 sm:p-6 overflow-y-auto space-y-5 text-slate-700">
+                {/* 1. Upload & Preview Zone */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                    1. Tải Lên Ảnh Menu / Bảng Giá Dịch Vụ
+                  </label>
+
+                  {!menuImagePreview ? (
+                    <label className="border-2 border-dashed border-purple-200 hover:border-purple-400 bg-purple-50/40 hover:bg-purple-50/70 rounded-2xl p-6 sm:p-8 flex flex-col items-center justify-center cursor-pointer transition-all text-center group">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleMenuImageSelect(file);
+                        }}
+                        className="hidden"
+                      />
+                      <div className="w-14 h-14 rounded-2xl bg-white shadow-xs group-hover:scale-105 transition-transform flex items-center justify-center text-purple-600 mb-3 border border-purple-100">
+                        <Camera size={28} />
+                      </div>
+                      <span className="text-sm font-bold text-slate-800">
+                        Nhấn để chọn ảnh hoặc kéo thả ảnh vào đây
+                      </span>
+                      <p className="text-xs text-slate-400 mt-1 max-w-sm">
+                        Hỗ trợ định dạng PNG, JPG, JPEG, WEBP. Ảnh chụp bảng giá rõ chữ, poster Canva hoặc menu story.
+                      </p>
+                    </label>
+                  ) : (
+                    <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col sm:flex-row items-center gap-4">
+                      <div className="relative w-full sm:w-36 h-36 bg-slate-100 rounded-xl overflow-hidden shrink-0 border border-slate-200 flex items-center justify-center">
+                        <img
+                          src={menuImagePreview}
+                          alt="Menu Preview"
+                          className="w-full h-full object-contain"
+                        />
+                      </div>
+                      <div className="flex-1 space-y-2 text-center sm:text-left">
+                        <div>
+                          <p className="font-bold text-slate-800 text-sm">
+                            {menuImageFile?.name || 'Ảnh bảng giá đã chọn'}
+                          </p>
+                          <p className="text-xs text-slate-400">
+                            {menuImageFile ? `${(menuImageFile.size / 1024).toFixed(1)} KB` : 'Đã tải lên'}
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap gap-2 justify-center sm:justify-start">
+                          <label className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-slate-700 font-semibold hover:bg-slate-50 text-xs cursor-pointer inline-flex items-center gap-1.5 transition-colors">
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) handleMenuImageSelect(file);
+                              }}
+                              className="hidden"
+                            />
+                            <Camera size={13} />
+                            <span>Đổi ảnh khác</span>
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMenuImagePreview(null);
+                              setMenuImageFile(null);
+                              setAiDetectedPackages([]);
+                              setAiRawText(null);
+                              setAiErrorMsg(null);
+                            }}
+                            className="px-3 py-1.5 rounded-xl text-rose-600 hover:bg-rose-50 text-xs font-semibold inline-flex items-center gap-1 transition-colors"
+                          >
+                            <Trash2 size={13} />
+                            <span>Xóa</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Optional Gemini API Key field */}
+                <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/70 space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-bold text-slate-700 flex items-center gap-1.5">
+                      <Key size={14} className="text-indigo-600" />
+                      <span>Google Gemini Vision API Key (Tùy chọn)</span>
+                    </span>
+                    <span className="text-[10px] text-slate-400">Có sẵn OCR offline dự phòng</span>
+                  </div>
+                  <input
+                    type="password"
+                    value={geminiApiKeyInput}
+                    onChange={(e) => setGeminiApiKeyInput(e.target.value)}
+                    placeholder="AIzaSy... (Nếu không nhập, hệ thống sẽ dùng OCR nội bộ miễn phí)"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs bg-white outline-none focus:ring-2 focus:ring-purple-500 font-mono"
+                  />
+                  <p className="text-[10px] text-slate-400 leading-relaxed">
+                    💡 Gemini 2.5 Flash Vision đọc được cả ảnh nghệ thuật, font thư pháp và poster phức tạp. Nếu không có key, hệ thống vẫn dùng OCR offline đọc bảng giá rõ nét.
+                  </p>
+                </div>
+
+                {/* Analysis Action Button */}
+                <div>
+                  <button
+                    type="button"
+                    onClick={handleStartAiAnalysis}
+                    disabled={!menuImagePreview || aiAnalyzing}
+                    className="w-full py-3 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-sm shadow-lg shadow-purple-200 flex items-center justify-center gap-2 disabled:opacity-50 transition-all cursor-pointer"
+                  >
+                    {aiAnalyzing ? (
+                      <>
+                        <RefreshCw size={18} className="animate-spin text-amber-300" />
+                        <span>Đang phân tích bảng giá bằng AI / OCR... Vui lòng đợi</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles size={18} />
+                        <span>Bắt Đầu Phân Tích & Bóc Tách Bảng Giá</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {/* Error Banner */}
+                {aiErrorMsg && (
+                  <div className="p-3.5 bg-rose-50 border border-rose-200 text-rose-800 rounded-2xl text-xs flex items-start gap-2.5">
+                    <AlertCircle size={18} className="shrink-0 text-rose-600 mt-0.5" />
+                    <div>
+                      <p className="font-bold">Không thể bóc tách tự động</p>
+                      <p className="mt-0.5 text-rose-700">{aiErrorMsg}</p>
+                      <p className="mt-1 text-[11px] text-rose-600 italic">
+                        Gợi ý: Bạn có thể nhập Gemini API Key hoặc bấm "+ Thêm gói" bên dưới để nhập nhanh.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Raw Text toggle if available */}
+                {aiRawText && (
+                  <details className="text-xs bg-slate-50 border border-slate-200 rounded-xl p-3">
+                    <summary className="font-semibold text-slate-600 cursor-pointer select-none">
+                      Xem nội dung chữ OCR đọc được ({aiRawText.length} ký tự)
+                    </summary>
+                    <pre className="mt-2 p-2 bg-white rounded border border-slate-100 text-[11px] font-mono text-slate-700 whitespace-pre-wrap max-h-32 overflow-y-auto">
+                      {aiRawText}
+                    </pre>
+                  </details>
+                )}
+
+                {/* 2. Detected Packages Preview & Edit */}
+                {aiDetectedPackages.length > 0 && (
+                  <div className="space-y-3 pt-2 border-t border-slate-100">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div>
+                        <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                          <span>Các Gói Dịch Vụ Đã Nhận Diện ({aiDetectedPackages.length})</span>
+                          {aiAnalysisMethod === 'gemini' ? (
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold border border-emerald-200">
+                              Gemini 2.5 Vision
+                            </span>
+                          ) : (
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 font-bold border border-blue-200">
+                              OCR Engine
+                            </span>
+                          )}
+                        </h4>
+                        <p className="text-xs text-slate-400">
+                          Kiểm tra và sửa trực tiếp tên gói hoặc giá tiền trước khi lưu vào hệ thống
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={handleAddManualDetectedPackage}
+                        className="px-3 py-1.5 rounded-xl border border-purple-200 bg-purple-50 text-purple-700 font-bold text-xs hover:bg-purple-100 transition-colors inline-flex items-center gap-1 self-start sm:self-auto cursor-pointer"
+                      >
+                        <Plus size={13} />
+                        <span>Thêm gói</span>
+                      </button>
+                    </div>
+
+                    <div className="space-y-2.5 max-h-64 overflow-y-auto pr-1">
+                      {aiDetectedPackages.map((pkg, idx) => (
+                        <div
+                          key={pkg.id || idx}
+                          className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex flex-col sm:flex-row sm:items-center gap-2.5"
+                        >
+                          <span className="w-5 h-5 rounded-full bg-slate-200 text-slate-600 font-bold text-[10px] flex items-center justify-center shrink-0">
+                            {idx + 1}
+                          </span>
+
+                          <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <div>
+                              <input
+                                type="text"
+                                value={pkg.label || pkg.name}
+                                onChange={(e) => {
+                                  handleUpdateDetectedPackage(idx, 'label', e.target.value);
+                                  handleUpdateDetectedPackage(idx, 'name', e.target.value);
+                                }}
+                                placeholder="Tên gói (VD: 3 câu hỏi)"
+                                className="w-full px-3 py-1.5 text-xs rounded-lg border border-slate-200 bg-white font-semibold outline-none focus:ring-2 focus:ring-purple-500"
+                              />
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="number"
+                                step="1000"
+                                value={pkg.price || 0}
+                                onChange={(e) => handleUpdateDetectedPackage(idx, 'price', Number(e.target.value) || 0)}
+                                placeholder="Giá VNĐ"
+                                className="w-28 px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 bg-white font-bold text-purple-700 outline-none focus:ring-2 focus:ring-purple-500"
+                              />
+                              <span className="text-xs font-bold text-slate-500 shrink-0">
+                                {formatPrice(pkg.price)}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateDetectedPackage(idx, 'popular', !pkg.popular)}
+                              className={`text-[11px] font-bold px-2 py-1 rounded-lg transition-colors cursor-pointer ${
+                                pkg.popular
+                                  ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                                  : 'bg-white text-slate-400 border border-slate-200 hover:text-slate-600'
+                              }`}
+                              title="Gắn cờ gói phổ biến"
+                            >
+                              {pkg.popular ? '★ Phổ biến' : '☆ Đặt'}
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveDetectedPackage(idx)}
+                              className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                              title="Xóa gói này"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Modal Footer Actions */}
+              <div className="p-4 sm:p-5 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setShowAiUploadModal(false)}
+                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl text-slate-600 font-bold hover:bg-slate-200 text-xs transition-colors cursor-pointer text-center"
+                >
+                  Đóng
+                </button>
+
+                {aiDetectedPackages.length > 0 && (
+                  <div className="w-full sm:w-auto flex flex-col sm:flex-row gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleApplyAiPackages('append')}
+                      disabled={packageSaveLoading}
+                      className="px-4 py-2.5 rounded-xl border border-purple-200 bg-white hover:bg-purple-50 text-purple-700 font-bold text-xs transition-colors shadow-2xs cursor-pointer flex items-center justify-center gap-1.5"
+                    >
+                      <Plus size={14} />
+                      <span>Thêm Nối Tiếp (Giữ Gói Cũ)</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleApplyAiPackages('overwrite')}
+                      disabled={packageSaveLoading}
+                      className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs transition-all shadow-md shadow-purple-200 cursor-pointer flex items-center justify-center gap-1.5"
+                    >
+                      <CheckCircle2 size={14} />
+                      <span>Ghi Đè Toàn Bộ Bảng Giá</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       <AnimatePresence>
         {showPasswordModal && (
           <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">

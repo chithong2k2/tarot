@@ -150,5 +150,22 @@ export const apiService = {
     } catch (error) {
       return { success: false, message: 'Lỗi gọi API đồng bộ: ' + (error instanceof Error ? error.message : String(error)) };
     }
+  },
+
+  analyzePriceMenu: async (imageBase64: string, mimeType?: string, geminiApiKey?: string) => {
+    try {
+      const response = await fetch('/api/analyze-price-menu', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageBase64, mimeType, geminiApiKey })
+      });
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      return { 
+        success: false, 
+        message: 'Lỗi gọi API phân tích ảnh: ' + (error instanceof Error ? error.message : String(error)) 
+      };
+    }
   }
 };
