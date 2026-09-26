@@ -900,23 +900,23 @@ export const SaleEntryView: React.FC<SaleEntryViewProps> = ({
                       )}
                     </div>
 
-                    {/* Action buttons (Sửa & Xóa) */}
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {/* Action buttons (Sửa & Xóa) - Always visible on mobile, hover on desktop */}
+                    <div className="flex items-center gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
                       <button
                         type="button"
                         title="Chỉnh sửa đơn"
                         onClick={() => handleStartEditSale(s)}
-                        className="p-1.5 rounded-lg hover:bg-[#ede9fe] text-slate-400 hover:text-[#6d28d9] transition-colors cursor-pointer"
+                        className="p-1.5 rounded-lg bg-slate-100/70 lg:bg-transparent hover:bg-[#ede9fe] text-slate-500 hover:text-[#6d28d9] transition-colors cursor-pointer"
                       >
-                        <Edit2 size={13} />
+                        <Edit2 size={14} />
                       </button>
                       <button
                         type="button"
                         title="Xóa đơn"
                         onClick={() => setSaleToDelete(s)}
-                        className="p-1.5 rounded-lg hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
+                        className="p-1.5 rounded-lg bg-slate-100/70 lg:bg-transparent hover:bg-rose-50 text-slate-500 hover:text-rose-600 transition-colors cursor-pointer"
                       >
-                        <Trash2 size={13} />
+                        <Trash2 size={14} />
                       </button>
                     </div>
                   </div>
