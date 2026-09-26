@@ -6,7 +6,7 @@ import dotenv from "dotenv";
 import cron from "node-cron";
 import { initializeApp } from "firebase/app";
 import { getFirestore, doc, setDoc, getDoc, getDocs, collection, query, orderBy, limit, where } from "firebase/firestore";
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
 import Tesseract from "tesseract.js";
 import { parseMenuTextToPackages } from "./src/utils/menuOcrParser";
 
@@ -299,7 +299,7 @@ async function startServer() {
         const ai = new GoogleGenAI({ apiKey: geminiKey });
         
         // Try candidate models in order of best vision performance, stability & availability
-        const candidateModels = ['gemini-3.5-flash', 'gemini-3.7-flash', 'gemini-3.8-flash', 'gemini-flash-latest', 'gemini-2.5-flash'];
+        const candidateModels = ['gemini-3.5-flash', 'gemini-3.7-flash', 'gemini-3.8-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest', 'gemini-2.5-flash'];
         let response: any = null;
         let lastErr: any = null;
 
@@ -316,22 +316,43 @@ async function startServer() {
                   }
                 },
                 {
-                  text: `Bạn là trợ lý AI chuyên bóc tách dữ liệu bảng giá/menu dịch vụ Tarot từ hình ảnh.
-Hãy phân tích hình ảnh bảng giá này và trích xuất tất cả các gói câu hỏi, gói thời gian, gói trải bài và mức giá tương ứng (đơn vị VNĐ).
-Yêu cầu bắt buộc:
-1. Trả về KẾT QUẢ DUY NHẤT LÀ MỘT JSON ARRAY hợp lệ theo cấu trúc:
-[
-  {
-    "name": "tên ngắn gọn, ví dụ: 1 câu, 3 câu, 1h, gói năm",
-    "label": "tên hiển thị rõ ràng, ví dụ: 1 Câu, 3 Câu, Trọn Gói 1h, Gói Năm",
-    "price": số nguyên VNĐ (ví dụ: 35000, 80000, 169000, 300000, 500000),
-    "popular": true nếu gói có nhãn hot/bán chạy/khuyên dùng/phổ biến hoặc nổi bật nhất, ngược lại false
-  }
-]
-2. Quy đổi chuẩn: 35k -> 35000, 160k -> 160000, 180k -> 180000, 300k -> 300000, 1tr -> 1000000.
-3. Không trả về markdown thừa, chỉ trả về JSON mảng.`
+                  text: `Bạn là chuyên gia OCR và trích xuất dữ liệu bảng giá/dịch vụ từ hình ảnh.
+
+Nhiệm vụ:
+Đọc chính xác nội dung hiển thị trên hình ảnh và trích xuất toàn bộ danh mục gói dịch vụ, gói câu hỏi, gói thời gian kèm theo giá tiền tương ứng.
+
+Quy tắc chuẩn hóa dữ liệu:
+1. Quy đổi giá tiền sang số nguyên VNĐ:
+   - Các hậu tố viết tắt: "k", "K", "cành", "nghìn", "ngàn" -> nhân với 1.000 (Ví dụ: 35k -> 35000, 129k -> 129000, 1.5k -> 1500).
+   - "tr", "Tr", "triệu", "củ" -> nhân với 1.000.000 (Ví dụ: 1tr -> 1000000, 1.2tr -> 1200000).
+   - Nếu đã ghi đầy đủ số (ví dụ: 50.000, 50,000) -> chuyển về dạng số nguyên không dấu ngăn cách (50000).
+   - Nếu không có giá hoặc miễn phí -> ghi 0.
+2. Thông tin gói:
+   - "name": Tên vắn tắt đại diện gói (ví dụ: "1 câu", "3 câu", "30p", "1h", "gói năm").
+   - "label": Tên hiển thị đầy đủ, rõ ràng và có ngữ cảnh chuẩn trên menu (ví dụ: "1 Câu", "30 Phút (1 Chủ Đề)", "Trọn Gói 1 Giờ").
+   - "popular": Đánh dấu true nếu gói có gắn nhãn nổi bật/hot/bán chạy/khuyên dùng (hoặc có icon ngôi sao, viền nổi bật), nếu không có thì false.
+3. Độ chính xác:
+   - Bám sát từng dòng chữ, số phút, số câu xuất hiện trên ảnh.
+   - Không tự ý thêm bớt các gói không tồn tại trong hình ảnh.`
                 }
-              ]
+              ],
+              config: {
+                temperature: 0,
+                responseMimeType: 'application/json',
+                responseSchema: {
+                  type: Type.ARRAY,
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      name: { type: Type.STRING, description: 'Tên ngắn gọn, ví dụ: 1 câu, 3 câu, 30p' },
+                      label: { type: Type.STRING, description: 'Tên hiển thị đầy đủ trên menu' },
+                      price: { type: Type.INTEGER, description: 'Mức giá quy đổi thành số nguyên VNĐ' },
+                      popular: { type: Type.BOOLEAN, description: 'True nếu có gắn nhãn nổi bật, ngược lại false' }
+                    },
+                    required: ['name', 'label', 'price', 'popular']
+                  }
+                }
+              }
             });
             if (response && response.text) {
               console.log(`[AI Menu] Successfully generated with model ${modelName}`);
@@ -348,29 +369,33 @@ Yêu cầu bắt buộc:
         }
 
         const rawText = response.text || '';
-        console.log("[AI Menu] Gemini raw response:", rawText.slice(0, 150));
+        console.log("[AI Menu] Gemini structured response:", rawText.slice(0, 150));
 
         // Parse JSON array
-        const jsonMatch = rawText.match(/\[[\s\S]*\]/);
-        if (jsonMatch) {
-          const parsed = JSON.parse(jsonMatch[0]);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            const formatted = parsed.map((p: any, idx: number) => ({
-              id: 'pkg_ai_' + Date.now() + '_' + idx,
-              name: String(p.name || `Gói ${idx + 1}`).trim(),
-              label: String(p.label || p.name || `Gói ${idx + 1}`).trim(),
-              price: Number(p.price) || 0,
-              popular: Boolean(p.popular)
-            })).filter((p: any) => p.price > 0);
+        let parsed: any[] = [];
+        try {
+          parsed = JSON.parse(rawText);
+        } catch {
+          const jsonMatch = rawText.match(/\[[\s\S]*\]/);
+          if (jsonMatch) parsed = JSON.parse(jsonMatch[0]);
+        }
 
-            if (formatted.length > 0) {
-              return res.json({
-                success: true,
-                method: 'gemini',
-                packages: formatted,
-                message: `AI Gemini đã nhận diện thành công ${formatted.length} gói dịch vụ từ ảnh!`
-              });
-            }
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const formatted = parsed.map((p: any, idx: number) => ({
+            id: 'pkg_ai_' + Date.now() + '_' + idx,
+            name: String(p.name || `Gói ${idx + 1}`).trim(),
+            label: String(p.label || p.name || `Gói ${idx + 1}`).trim(),
+            price: Number(p.price) || 0,
+            popular: Boolean(p.popular)
+          })).filter((p: any) => p.price > 0);
+
+          if (formatted.length > 0) {
+            return res.json({
+              success: true,
+              method: 'gemini',
+              packages: formatted,
+              message: `AI Gemini đã nhận diện thành công ${formatted.length} gói dịch vụ từ ảnh!`
+            });
           }
         }
       } catch (geminiErr: any) {
