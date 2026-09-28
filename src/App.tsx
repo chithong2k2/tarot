@@ -21,10 +21,18 @@ import { Menu, X } from 'lucide-react';
 import { PayrollPeriod } from './types';
 
 export default function App() {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | null>(() => {
+    try {
+      const savedUser = localStorage.getItem('tarot_user');
+      return savedUser ? JSON.parse(savedUser) : null;
+    } catch {
+      return null;
+    }
+  });
   const [view, setView] = useState<'dashboard' | 'staff' | 'staff_form' | 'entry' | 'shifts' | 'register_shift' | 'settings' | 'sales_history' | 'payroll' | 'costs'>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [loginLoading, setLoginLoading] = useState(false);
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [rawSales, setRawSales] = useState<SaleRecord[]>([]);
@@ -195,13 +203,6 @@ export default function App() {
   };
 
   useEffect(() => {
-    const savedUser = localStorage.getItem('tarot_user');
-    if (savedUser) {
-      setUser(JSON.parse(savedUser));
-    }
-  }, []);
-
-  useEffect(() => {
     if (user) {
       if (user.role !== 'manager') {
         setSelectedReader(user.id);
@@ -292,7 +293,7 @@ export default function App() {
       return;
     }
     try {
-      setLoading(true);
+      setLoginLoading(true);
       console.log("[App] Login started...");
       const res = await firebaseService.login(loginForm.username, loginForm.password);
       console.log("[App] Login result:", res);
@@ -307,13 +308,15 @@ export default function App() {
       console.error("[App] Login error:", err);
       alert('Lỗi kết nối: ' + (err instanceof Error ? err.message : String(err)));
     } finally {
-      setLoading(false);
+      setLoginLoading(false);
     }
   };
 
   const handleLogout = () => {
     setUser(null);
     localStorage.removeItem('tarot_user');
+    setLoading(false);
+    setLoginLoading(false);
   };
 
   const onUpdateUser = (updatedUser: User) => {
@@ -481,7 +484,7 @@ export default function App() {
         handleLogin={handleLogin} 
         handleSeed={handleSeed}
         checkApi={() => alert('Firebase connected')}
-        loading={loading}
+        loading={loginLoading}
       />
     );
   }
