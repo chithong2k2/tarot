@@ -49,6 +49,7 @@ import {
 } from 'recharts';
 import { User, SaleRecord, DashboardSummary, AdHistoryRecord } from '../../types';
 import { firebaseService } from '../../services/firebaseService';
+import { apiService } from '../../services/api';
 import { StatCard, formatVND } from '../DashboardComponents';
 import { exportToExcel } from '../../utils/export';
 import { getVNDayName, getVNMonday, getVNTime } from '../../utils/dateUtils';
@@ -145,22 +146,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     try {
       setIsSyncingAds(true);
       setSyncAdsSuccess(null);
-      const res = await fetch('/api/sync-fb-ads', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      });
-      const data = await res.json().catch(() => null);
-      if (res.ok && data?.success) {
+      const res = await apiService.syncMetaAds();
+      if (res?.success) {
         setSyncAdsSuccess('Đã cập nhật Ads realtime!');
         fetchData();
         setTimeout(() => setSyncAdsSuccess(null), 4000);
       } else {
-        const errorMsg = data?.message || data?.error || `Mã lỗi ${res.status}`;
+        const errorMsg = res?.message || 'Không thể đồng bộ Ads';
         alert(`Không thể đồng bộ Ads: ${errorMsg}`);
       }
     } catch (err: any) {
       console.error("[FB Sync Error]", err);
-      alert(`Lỗi kết nối tới máy chủ đồng bộ Ads: ${err?.message || 'Không thể kết nối'}. Vui lòng đảm bảo server Node.js đang chạy trên cổng 3000.`);
+      alert(`Lỗi đồng bộ Ads: ${err?.message || 'Không thể kết nối'}`);
     } finally {
       setIsSyncingAds(false);
     }

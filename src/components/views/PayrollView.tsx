@@ -22,6 +22,7 @@ import { formatVND } from '../DashboardComponents';
 import { getVNMonday, getVNDateStr } from '../../utils/dateUtils';
 import { VIETNAM_BANKS, generateVietQRUrl, getRandomTransferNote } from '../../utils/vietqr';
 import { firebaseService } from '../../services/firebaseService';
+import { apiService } from '../../services/api';
 import { ConfirmModal } from '../ConfirmModal';
 import { 
   TrendingUp, 
@@ -214,22 +215,18 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
     try {
       setIsSyncingAds(true);
       setSyncMessage(null);
-      const res = await fetch('/api/sync-fb-ads', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      });
-      const data = await res.json().catch(() => null);
-      if (res.ok && data?.success) {
-        setSyncMessage(data.message || 'Đã đồng bộ tiền Ads hôm nay từ Facebook thành công!');
+      const res = await apiService.syncMetaAds();
+      if (res?.success) {
+        setSyncMessage(res.message || 'Đã đồng bộ tiền Ads hôm nay từ Facebook thành công!');
         await fetchData();
         setTimeout(() => setSyncMessage(null), 5000);
       } else {
-        const errorMsg = data?.message || data?.error || `Máy chủ trả về mã lỗi ${res.status}`;
+        const errorMsg = res?.message || 'Không thể đồng bộ chi phí Ads';
         alert(`Không thể đồng bộ Ads: ${errorMsg}`);
       }
     } catch (err: any) {
       console.error("[FB Sync Error]", err);
-      alert(`Lỗi kết nối tới máy chủ đồng bộ Ads: ${err?.message || 'Không thể kết nối đến máy chủ'}. Hãy kiểm tra server Node.js đang chạy trên cổng 3000.`);
+      alert(`Lỗi đồng bộ Ads: ${err?.message || 'Không thể kết nối'}`);
     } finally {
       setIsSyncingAds(false);
     }

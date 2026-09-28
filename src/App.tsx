@@ -233,11 +233,7 @@ export default function App() {
   useEffect(() => {
     if (user?.role === 'manager') {
       const syncAds = () => {
-        fetch('/api/sync-fb-ads', { 
-          method: 'POST', 
-          headers: { 'Content-Type': 'application/json' } 
-        })
-          .then(r => r.json())
+        apiService.syncMetaAds()
           .then(d => {
             if (d?.success) console.log('[AutoSync FB Ads] Realtime ads updated successfully');
           })
