@@ -300,6 +300,16 @@ async function startServer() {
     }
   });
 
+  // API route for weekly 00:00 Monday auto-rollover
+  app.get("/api/cron-rollover", async (req, res) => {
+    try {
+      await autoArchivePreviousWeekOnServer();
+      res.json({ success: true, message: "Đã tự động lưu tuần cũ và reset ca trực tuần mới thành công." });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err?.message || String(err) });
+    }
+  });
+
   // API route to sync realtime daily Facebook Ads spend into Firestore
   app.post("/api/sync-fb-ads", async (req, res) => {
     const { accessToken, adAccountId } = await getMetaCredentials();
