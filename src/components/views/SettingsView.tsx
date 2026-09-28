@@ -1759,9 +1759,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         <div className="space-y-6">
           {/* Header Card */}
           <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-100 shadow-sm space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
               <div className="flex items-center space-x-3">
-                <div className="w-12 h-12 rounded-2xl bg-purple-50 flex items-center justify-center text-purple-600">
+                <div className="w-12 h-12 rounded-2xl bg-purple-50 flex items-center justify-center text-purple-600 shrink-0">
                   <Sparkles size={24} />
                 </div>
                 <div>
@@ -1770,12 +1770,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </div>
               </div>
 
-              <div className="flex items-center gap-2.5">
+              <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
                 <button
                   type="button"
                   onClick={handleResetDefaultPackages}
                   disabled={packageSaveLoading}
-                  className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-bold hover:bg-slate-50 transition-colors text-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  className="px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold transition-all text-xs flex items-center gap-1.5 cursor-pointer shadow-xs whitespace-nowrap disabled:opacity-50"
                   title="Khôi phục về 7 gói Tarot mặc định của shop"
                 >
                   <RotateCcw size={14} />
@@ -1788,7 +1788,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     setShowAiUploadModal(true);
                     setAiErrorMsg(null);
                   }}
-                  className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold transition-all shadow-md shadow-purple-200 text-xs flex items-center gap-1.5 cursor-pointer"
+                  className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold transition-all shadow-sm shadow-purple-200 text-xs flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
                   title="Tự động phân tích ảnh bảng giá Tarot bằng AI & OCR"
                 >
                   <Camera size={14} />
@@ -1799,7 +1799,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   type="button"
                   onClick={handleOpenAddPackage}
                   disabled={packageSaveLoading}
-                  className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold transition-all shadow-md shadow-purple-200 text-xs flex items-center gap-1.5 cursor-pointer"
+                  className="px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold transition-all shadow-sm shadow-purple-200 text-xs flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
                 >
                   <Plus size={15} />
                   <span>Thêm Gói Mới</span>
