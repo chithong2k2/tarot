@@ -1770,40 +1770,44 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </div>
               </div>
 
-              <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
-                <button
-                  type="button"
-                  onClick={handleResetDefaultPackages}
-                  disabled={packageSaveLoading}
-                  className="px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold transition-all text-xs flex items-center gap-1.5 cursor-pointer shadow-xs whitespace-nowrap disabled:opacity-50"
-                  title="Khôi phục về 7 gói Tarot mặc định của shop"
-                >
-                  <RotateCcw size={14} />
-                  <span>Khôi Phục Mặc Định</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowAiUploadModal(true);
-                    setAiErrorMsg(null);
-                  }}
-                  className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold transition-all shadow-sm shadow-purple-200 text-xs flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
-                  title="Tự động phân tích ảnh bảng giá Tarot bằng AI & OCR"
-                >
-                  <Camera size={14} />
-                  <span>Quét Bảng Giá Từ Ảnh (AI)</span>
-                </button>
-
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full xl:w-auto shrink-0">
                 <button
                   type="button"
                   onClick={handleOpenAddPackage}
                   disabled={packageSaveLoading}
-                  className="px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold transition-all shadow-sm shadow-purple-200 text-xs flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                  className="order-1 sm:order-3 w-full sm:w-auto h-11 sm:h-10 px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold transition-all shadow-md shadow-purple-200 text-xs flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap active:scale-[0.98]"
                 >
-                  <Plus size={15} />
+                  <Plus size={16} />
                   <span>Thêm Gói Mới</span>
                 </button>
+
+                <div className="order-2 sm:order-1 grid grid-cols-2 sm:flex sm:items-center gap-2 w-full sm:w-auto">
+                  <button
+                    type="button"
+                    onClick={handleResetDefaultPackages}
+                    disabled={packageSaveLoading}
+                    className="w-full sm:w-auto h-10 sm:h-10 px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold transition-all text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-xs whitespace-nowrap disabled:opacity-50 active:scale-[0.98]"
+                    title="Khôi phục về 7 gói Tarot mặc định của shop"
+                  >
+                    <RotateCcw size={14} className="shrink-0" />
+                    <span className="sm:hidden">Đặt Lại Gốc</span>
+                    <span className="hidden sm:inline">Khôi Phục Mặc Định</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowAiUploadModal(true);
+                      setAiErrorMsg(null);
+                    }}
+                    className="w-full sm:w-auto h-10 sm:h-10 px-3 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold transition-all shadow-sm shadow-purple-200 text-xs flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap active:scale-[0.98]"
+                    title="Tự động phân tích ảnh bảng giá Tarot bằng AI & OCR"
+                  >
+                    <Camera size={14} className="shrink-0" />
+                    <span className="sm:hidden">Quét Ảnh (AI)</span>
+                    <span className="hidden sm:inline">Quét Bảng Giá Từ Ảnh (AI)</span>
+                  </button>
+                </div>
               </div>
             </div>
 

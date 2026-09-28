@@ -547,26 +547,26 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <p className="text-slate-500 text-sm mt-0.5">Dữ liệu tài chính, hiệu quả quảng cáo và hiệu suất làm việc</p>
         </div>
 
-        <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full lg:w-auto shrink-0">
           {/* Week Selector Control */}
-          <div className="flex items-center bg-white border border-slate-200/90 rounded-xl p-0.5 shadow-sm shrink-0">
+          <div className="flex items-center justify-between bg-white border border-slate-200/90 rounded-xl p-0.5 shadow-sm w-full sm:w-auto">
             <button
               type="button"
               onClick={handleOlderWeek}
               disabled={selectedWeekIndex >= availableWeeks.length - 1}
               title="Tuần trước đó"
-              className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-slate-50 disabled:opacity-25 disabled:hover:bg-transparent cursor-pointer transition-colors"
+              className="p-2 sm:p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-slate-50 disabled:opacity-25 disabled:hover:bg-transparent cursor-pointer transition-colors"
             >
-              <ChevronLeft size={15} />
+              <ChevronLeft size={16} />
             </button>
-            <div className="relative">
+            <div className="relative flex-1 text-center">
               <select
                 value={selectedWeekId}
                 onChange={(e) => {
                   setSelectedWeekId(e.target.value);
                   setSelectedDay('All');
                 }}
-                className="bg-transparent text-xs font-bold text-slate-800 pl-2 pr-6 py-1 outline-none cursor-pointer appearance-none"
+                className="w-full text-center bg-transparent text-xs font-bold text-slate-800 pl-2 pr-6 py-1.5 outline-none cursor-pointer appearance-none"
               >
                 {availableWeeks.map(w => (
                   <option key={w.id} value={w.id}>
@@ -574,29 +574,30 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   </option>
                 ))}
               </select>
-              <ChevronDown size={12} className="absolute right-1 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
             </div>
             <button
               type="button"
               onClick={handleNewerWeek}
               disabled={selectedWeekIndex <= 0}
               title="Tuần sau đó"
-              className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-slate-50 disabled:opacity-25 disabled:hover:bg-transparent cursor-pointer transition-colors"
+              className="p-2 sm:p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-slate-50 disabled:opacity-25 disabled:hover:bg-transparent cursor-pointer transition-colors"
             >
-              <ChevronRight size={15} />
+              <ChevronRight size={16} />
             </button>
           </div>
 
           {user.role === 'manager' && (
-            <>
+            <div className="grid grid-cols-3 sm:flex sm:items-center gap-1.5 sm:gap-2 w-full sm:w-auto">
               <button 
                 onClick={handleSyncFbAds}
                 disabled={isSyncingAds}
-                className="flex items-center space-x-1.5 bg-blue-50 border border-blue-200 px-3.5 py-2 rounded-xl text-blue-700 hover:bg-blue-100 transition-colors shadow-sm font-semibold text-xs cursor-pointer disabled:opacity-60"
+                className="flex items-center justify-center space-x-1 sm:space-x-1.5 bg-blue-50 border border-blue-200 px-2 sm:px-3.5 py-2.5 sm:py-2 rounded-xl text-blue-700 hover:bg-blue-100 transition-colors shadow-sm font-semibold text-[11px] sm:text-xs cursor-pointer disabled:opacity-60 whitespace-nowrap active:scale-[0.98]"
                 title="Đồng bộ chi phí quảng cáo realtime từ Meta Graph API"
               >
-                <RefreshCw size={14} className={isSyncingAds ? 'animate-spin' : ''} />
-                <span>{isSyncingAds ? 'Đang đồng bộ...' : (syncAdsSuccess || 'Đồng Bộ Ads')}</span>
+                <RefreshCw size={13} className={isSyncingAds ? 'animate-spin shrink-0' : 'shrink-0'} />
+                <span className="sm:hidden">{isSyncingAds ? 'Sync...' : (syncAdsSuccess ? 'Xong' : 'Đồng Bộ')}</span>
+                <span className="hidden sm:inline">{isSyncingAds ? 'Đang đồng bộ...' : (syncAdsSuccess || 'Đồng Bộ Ads')}</span>
               </button>
               <button 
                 onClick={() => {
@@ -608,10 +609,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     endDateStr: activeWeek.endStr
                   });
                 }}
-                className="flex items-center space-x-1.5 bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-xl transition-all shadow-sm font-semibold text-xs cursor-pointer"
+                className="flex items-center justify-center space-x-1 sm:space-x-1.5 bg-emerald-600 hover:bg-emerald-700 text-white px-2 sm:px-3.5 py-2.5 sm:py-2 rounded-xl transition-all shadow-sm font-semibold text-[11px] sm:text-xs cursor-pointer whitespace-nowrap active:scale-[0.98]"
                 title={`Xuất file Excel đầy đủ 4 sheet báo cáo cho ${activeWeek.shortLabel || activeWeek.label}`}
               >
-                <FileDown size={14} />
+                <FileDown size={13} className="shrink-0" />
                 <span>Xuất Excel</span>
               </button>
 
@@ -624,12 +625,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     e.stopPropagation();
                     setShowZipDropdown(!showZipDropdown);
                   }}
-                  className="flex items-center space-x-1.5 bg-indigo-50 border border-indigo-200 px-3.5 py-2 rounded-xl text-indigo-700 hover:bg-indigo-100 transition-colors shadow-sm font-semibold text-xs cursor-pointer disabled:opacity-60"
+                  className="w-full flex items-center justify-center space-x-1 sm:space-x-1.5 bg-indigo-50 border border-indigo-200 px-2 sm:px-3.5 py-2.5 sm:py-2 rounded-xl text-indigo-700 hover:bg-indigo-100 transition-colors shadow-sm font-semibold text-[11px] sm:text-xs cursor-pointer disabled:opacity-60 whitespace-nowrap active:scale-[0.98]"
                   title="Tải trọn bộ file báo cáo & sao lưu dạng thư mục ZIP"
                 >
-                  {isExportingZip ? <RefreshCw size={14} className="animate-spin" /> : <Package size={14} />}
-                  <span>{isExportingZip ? 'Đang nén...' : 'Gói Báo Cáo (.zip)'}</span>
-                  <ChevronDown size={12} className={`transition-transform duration-200 ${showZipDropdown ? 'rotate-180' : ''}`} />
+                  {isExportingZip ? <RefreshCw size={13} className="animate-spin shrink-0" /> : <Package size={13} className="shrink-0" />}
+                  <span className="sm:hidden">{isExportingZip ? 'Nén...' : 'Gói .zip'}</span>
+                  <span className="hidden sm:inline">{isExportingZip ? 'Đang nén...' : 'Gói Báo Cáo (.zip)'}</span>
+                  <ChevronDown size={11} className={`transition-transform duration-200 ${showZipDropdown ? 'rotate-180' : ''}`} />
                 </button>
 
                 {showZipDropdown && (
@@ -671,7 +673,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   </div>
                 )}
               </div>
-            </>
+            </div>
           )}
         </div>
       </div>
