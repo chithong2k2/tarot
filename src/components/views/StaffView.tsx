@@ -33,18 +33,6 @@ interface StaffViewProps {
 type SortField = 'name' | 'role' | 'commission' | 'orders' | 'revenue';
 type SortOrder = 'asc' | 'desc';
 
-// Default mockup stats for baseline when sales are empty
-const DEFAULT_STAFF_STATS: Record<string, { orders: number; revenue: number }> = {
-  'anbi': { orders: 42, revenue: 12400000 },
-  'hienpham': { orders: 33, revenue: 9850000 },
-  'luuha': { orders: 48, revenue: 14200000 },
-  'chingching': { orders: 61, revenue: 18600000 },
-  'admin': { orders: 0, revenue: 0 },
-  'hgiang': { orders: 74, revenue: 22150000 },
-  'thong': { orders: 118, revenue: 31400000 },
-  'ngocminh': { orders: 26, revenue: 7900000 },
-  'mia': { orders: 18, revenue: 5300000 },
-};
 
 // Format currency as mockup: 12.400.000 đ
 const formatCurrency = (val: number): string => {
@@ -115,37 +103,33 @@ export const StaffView: React.FC<StaffViewProps> = ({
     return u.role === 'sale' ? 20 : 30;
   };
 
-  // Compute orders and revenue for a user from real sales data (or fallback to mockup baseline)
+  // Compute orders and revenue for a user strictly from real sales data
   const getStaffStats = (u: User) => {
     if (u.role === 'manager') {
       return { orders: 0, revenue: 0, isManager: true };
     }
 
-    const cleanUser = (u.username || u.full_name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-    let baseline = { orders: 0, revenue: 0 };
-    for (const [key, stats] of Object.entries(DEFAULT_STAFF_STATS)) {
-      if (cleanUser.includes(key) || key.includes(cleanUser)) {
-        baseline = stats;
-        break;
-      }
-    }
+    const userId = (u.id || '').trim().toLowerCase();
+    const username = (u.username || '').trim().toLowerCase();
+    const fullName = (u.full_name || '').trim().toLowerCase();
 
-    const userSales = sales.filter(s => 
-      s.reader_id === u.id || 
-      s.sale_id === u.id || 
-      s.reader_id === u.username || 
-      s.sale_id === u.username ||
-      s.reader_id === u.full_name || 
-      s.sale_id === u.full_name
-    );
+    const userSales = sales.filter(s => {
+      const readerId = String(s.reader_id || '').trim().toLowerCase();
+      const saleId = String(s.sale_id || '').trim().toLowerCase();
+      const readerName = String(s.reader_name || '').trim().toLowerCase();
+      const saleName = String(s.sale_name || '').trim().toLowerCase();
 
-    if (userSales.length > 0) {
-      const orders = userSales.length + baseline.orders;
-      const revenue = userSales.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0) + baseline.revenue;
-      return { orders, revenue, isManager: false };
-    }
+      return (
+        (userId && (readerId === userId || saleId === userId)) ||
+        (username && (readerId === username || saleId === username)) ||
+        (fullName && (readerId === fullName || readerName === fullName || saleId === fullName || saleName === fullName))
+      );
+    });
 
-    return { ...baseline, isManager: false };
+    const orders = userSales.length;
+    const revenue = userSales.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
+
+    return { orders, revenue, isManager: false };
   };
 
   // Active users count

@@ -8,7 +8,8 @@ import {
   X,
   RefreshCw,
   ChevronDown,
-  Edit2
+  Edit2,
+  ShoppingBag
 } from 'lucide-react';
 import { User, SaleRecord, SystemSettings } from '../../types';
 import { firebaseService } from '../../services/firebaseService';
@@ -153,53 +154,8 @@ export const SaleEntryView: React.FC<SaleEntryViewProps> = ({
   };
   const shiftInfo = getShiftInfo();
 
-  // Session sales list for right sidebar - exactly matching the mockup 4 orders
-  const [sessionSales, setSessionSales] = useState<SaleRecord[]>([
-    {
-      id: 'session-mock-1',
-      date: '2026-09-26',
-      customer_name: 'Mai Anh',
-      amount: 100000,
-      tip: 20000,
-      package_name: '5 Câu',
-      reader_id: 'Linh',
-      sale_id: 'Vy',
-      created_at: '2026-09-26T10:12:00.000Z'
-    },
-    {
-      id: 'session-mock-2',
-      date: '2026-09-26',
-      customer_name: 'Hoàng Yến',
-      amount: 80000,
-      tip: 0,
-      package_name: '3 Câu',
-      reader_id: 'Giang',
-      sale_id: 'Thông',
-      created_at: '2026-09-26T10:04:00.000Z'
-    },
-    {
-      id: 'session-mock-3',
-      date: '2026-09-26',
-      customer_name: 'Bảo Trân',
-      amount: 169000,
-      tip: 50000,
-      package_name: '10 Câu',
-      reader_id: 'Giang',
-      sale_id: 'Thông',
-      created_at: '2026-09-26T09:52:00.000Z'
-    },
-    {
-      id: 'session-mock-4',
-      date: '2026-09-26',
-      customer_name: 'Ngọc Diệp',
-      amount: 35000,
-      tip: 0,
-      package_name: '1 Câu',
-      reader_id: 'Hằng',
-      sale_id: 'Nhung',
-      created_at: '2026-09-26T09:41:00.000Z'
-    }
-  ]);
+  // Session sales list for right sidebar (empty by default, populated as user enters sales)
+  const [sessionSales, setSessionSales] = useState<SaleRecord[]>([]);
 
   // Ensure initial form prefill matches mockup if empty
   useEffect(() => {
@@ -372,14 +328,12 @@ export const SaleEntryView: React.FC<SaleEntryViewProps> = ({
       const saleLabel = saleObj?.full_name?.split(' ').slice(-1)[0] || 'Sale';
 
       if (editingSale) {
-        // Update in Firebase if real ID
-        if (!editingSale.id.startsWith('session-mock')) {
-          await firebaseService.updateSaleRecord({
-            ...editingSale,
-            ...saleForm,
-            id: editingSale.id
-          } as SaleRecord);
-        }
+        // Update in Firebase
+        await firebaseService.updateSaleRecord({
+          ...editingSale,
+          ...saleForm,
+          id: editingSale.id
+        } as SaleRecord);
 
         // Update in sessionSales state
         setSessionSales(prev => prev.map(item => item.id === editingSale.id ? {
@@ -444,9 +398,7 @@ export const SaleEntryView: React.FC<SaleEntryViewProps> = ({
   const handleConfirmDelete = async () => {
     if (!saleToDelete) return;
     try {
-      if (!saleToDelete.id.startsWith('session-mock')) {
-        await firebaseService.deleteSaleRecord(saleToDelete.id);
-      }
+      await firebaseService.deleteSaleRecord(saleToDelete.id);
       setSessionSales(prev => prev.filter(item => item.id !== saleToDelete.id));
       if (editingSale?.id === saleToDelete.id) {
         setEditingSale(null);
@@ -477,12 +429,8 @@ export const SaleEntryView: React.FC<SaleEntryViewProps> = ({
   const sessionTotalRev = sessionSales.reduce((sum, s) => sum + (Number(s.amount) || 0) + (Number(s.tip) || 0), 0);
   const sessionAvgRev = sessionSales.length > 0 ? Math.round(sessionTotalRev / sessionSales.length) : 0;
 
-  // Format order timestamp e.g. 10:12 / 10:04 / 09:52 / 09:41
-  const formatOrderTime = (sale: SaleRecord, index: number) => {
-    if (sale.id === 'session-mock-1') return '10:12';
-    if (sale.id === 'session-mock-2') return '10:04';
-    if (sale.id === 'session-mock-3') return '09:52';
-    if (sale.id === 'session-mock-4') return '09:41';
+  // Format order timestamp e.g. 10:12
+  const formatOrderTime = (sale: SaleRecord) => {
     if (sale.created_at) {
       try {
         const d = new Date(sale.created_at);
@@ -491,7 +439,7 @@ export const SaleEntryView: React.FC<SaleEntryViewProps> = ({
         }
       } catch {}
     }
-    return index === 0 ? '10:12' : '10:04';
+    return '--:--';
   };
 
   const isPackageSelected = (pkg: PackageOption) => {
@@ -870,19 +818,28 @@ export const SaleEntryView: React.FC<SaleEntryViewProps> = ({
 
           {/* Scrollable list of recent orders with slim scrollbar flush right along the card edge */}
           <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pt-3 -mr-4 sm:-mr-6 pr-4 sm:pr-5 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-200 hover:[&::-webkit-scrollbar-thumb]:bg-slate-300">
-            {sessionSales.map((s, idx) => {
-              const isBeingEdited = editingSale?.id === s.id;
-              return (
-                <div 
-                  key={s.id || idx} 
-                  className={`group relative flex items-start justify-between p-2.5 rounded-2xl transition-all ${
-                    isBeingEdited ? 'bg-[#faf5ff] ring-1.5 ring-[#7c3aed]' : 'hover:bg-slate-50'
-                  }`}
-                >
-                  <div className="flex items-start gap-3 min-w-0">
-                    <span className="text-xs font-medium text-slate-400 pt-0.5 shrink-0">
-                      {formatOrderTime(s, idx)}
-                    </span>
+            {sessionSales.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 text-center text-slate-400">
+                <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center mb-3">
+                  <ShoppingBag size={22} />
+                </div>
+                <p className="text-sm font-bold text-slate-700">Chưa có đơn nào trong phiên</p>
+                <p className="text-xs text-slate-400 mt-1 max-w-[200px]">Các đơn bạn vừa nhập thành công sẽ hiển thị danh sách tại đây</p>
+              </div>
+            ) : (
+              sessionSales.map((s) => {
+                const isBeingEdited = editingSale?.id === s.id;
+                return (
+                  <div 
+                    key={s.id} 
+                    className={`group relative flex items-start justify-between p-2.5 rounded-2xl transition-all ${
+                      isBeingEdited ? 'bg-[#faf5ff] ring-1.5 ring-[#7c3aed]' : 'hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="flex items-start gap-3 min-w-0">
+                      <span className="text-xs font-medium text-slate-400 pt-0.5 shrink-0">
+                        {formatOrderTime(s)}
+                      </span>
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <p className="text-sm font-bold text-slate-800 truncate">{s.customer_name || 'Khách'}</p>
@@ -930,7 +887,7 @@ export const SaleEntryView: React.FC<SaleEntryViewProps> = ({
                   </div>
                 </div>
               );
-            })}
+            }))}
           </div>
         </div>
 
