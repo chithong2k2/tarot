@@ -237,7 +237,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   // Week Selector State
   const [selectedWeekId, setSelectedWeekId] = React.useState<string>('current');
 
-  // Available Weeks
+  // Available Weeks - starts strictly from Current Week onwards (+ any closed payroll periods)
   const availableWeeks = React.useMemo<AvailableWeek[]>(() => {
     const weeks: AvailableWeek[] = [];
     const baseMonday = getVNMonday();
@@ -256,73 +256,49 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       }).format(d);
     };
 
-    let maxWeeks = 12;
+    const currentSunday = new Date(baseMonday);
+    currentSunday.setDate(baseMonday.getDate() + 6);
+    currentSunday.setHours(23, 59, 59, 999);
 
-    sales.forEach(s => {
-      if (s.date) {
-        const d = new Date(`${s.date}T00:00:00+07:00`);
-        if (!isNaN(d.getTime())) {
-          const diffWeeks = Math.ceil((baseMonday.getTime() - d.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1;
-          if (diffWeeks > maxWeeks) maxWeeks = Math.min(diffWeeks, 52);
+    const currentStartStr = formatYMD(baseMonday);
+    const currentEndStr = formatYMD(currentSunday);
+
+    // 1. Current Week (Always starting from this week)
+    weeks.push({
+      id: 'current',
+      label: `Tuần này (${formatDM(baseMonday)} - ${formatDM(currentSunday)})`,
+      shortLabel: 'Tuần này',
+      startDate: baseMonday,
+      endDate: currentSunday,
+      startStr: currentStartStr,
+      endStr: currentEndStr,
+      isCurrent: true
+    });
+
+    // 2. Only include past weeks that were saved in payrollPeriods
+    (payrollPeriods || []).forEach(p => {
+      if (p.start_date && p.end_date) {
+        if (p.start_date !== currentStartStr) {
+          const sDate = new Date(`${p.start_date}T00:00:00+07:00`);
+          const eDate = new Date(`${p.end_date}T23:59:59+07:00`);
+          if (!isNaN(sDate.getTime()) && !isNaN(eDate.getTime())) {
+            weeks.push({
+              id: p.id || `payroll_${p.start_date}`,
+              label: `${p.title || `Tuần (${formatDM(sDate)} - ${formatDM(eDate)})`} 🔖`,
+              shortLabel: p.title || `${formatDM(sDate)} - ${formatDM(eDate)}`,
+              startDate: sDate,
+              endDate: eDate,
+              startStr: p.start_date,
+              endStr: p.end_date,
+              isCurrent: false
+            });
+          }
         }
       }
     });
-
-    payrollPeriods.forEach(p => {
-      if (p.start_date) {
-        const d = new Date(`${p.start_date}T00:00:00+07:00`);
-        if (!isNaN(d.getTime())) {
-          const diffWeeks = Math.ceil((baseMonday.getTime() - d.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1;
-          if (diffWeeks > maxWeeks) maxWeeks = Math.min(diffWeeks, 52);
-        }
-      }
-    });
-
-    for (let i = 0; i < maxWeeks; i++) {
-      const sDate = new Date(baseMonday);
-      sDate.setDate(baseMonday.getDate() - (i * 7));
-      sDate.setHours(0, 0, 0, 0);
-
-      const eDate = new Date(sDate);
-      eDate.setDate(sDate.getDate() + 6);
-      eDate.setHours(23, 59, 59, 999);
-
-      const startStr = formatYMD(sDate);
-      const endStr = formatYMD(eDate);
-      const isCurrent = i === 0;
-
-      let label = '';
-      let shortLabel = '';
-      if (i === 0) {
-        label = `Tuần này (${formatDM(sDate)} - ${formatDM(eDate)})`;
-        shortLabel = 'Tuần này';
-      } else if (i === 1) {
-        label = `Tuần trước (${formatDM(sDate)} - ${formatDM(eDate)})`;
-        shortLabel = 'Tuần trước';
-      } else {
-        label = `${i} tuần trước (${formatDM(sDate)} - ${formatDM(eDate)})`;
-        shortLabel = `${i} tuần trước`;
-      }
-
-      const matchedPayroll = payrollPeriods.find(p => p.start_date === startStr && p.end_date === endStr);
-      if (matchedPayroll) {
-        label += ' 🔖 [Đã chốt]';
-      }
-
-      weeks.push({
-        id: i === 0 ? 'current' : `week-${i}`,
-        label,
-        shortLabel,
-        startDate: sDate,
-        endDate: eDate,
-        startStr,
-        endStr,
-        isCurrent
-      });
-    }
 
     return weeks;
-  }, [sales, payrollPeriods]);
+  }, [payrollPeriods]);
 
   const activeWeek = React.useMemo(() => {
     return availableWeeks.find(w => w.id === selectedWeekId) || availableWeeks[0];
@@ -565,60 +541,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       className="space-y-6"
     >
       {/* Top Header */}
-      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-2xl font-black text-slate-900 tracking-tight">Tổng Quan Doanh Thu</h2>
-              <span className="text-xs bg-indigo-50 text-indigo-700 font-bold px-2.5 py-1 rounded-full border border-indigo-200/60">
-                {currentDayStats.title}
-              </span>
-            </div>
-            <p className="text-slate-500 text-sm mt-0.5">Dữ liệu tài chính, hiệu quả quảng cáo và hiệu suất làm việc</p>
-          </div>
-
-          {/* Week Selector Control */}
-          <div className="flex items-center bg-white border border-slate-200/90 rounded-xl p-1 shadow-sm shrink-0 self-start sm:self-center">
-            <button
-              type="button"
-              onClick={handleOlderWeek}
-              disabled={selectedWeekIndex >= availableWeeks.length - 1}
-              title="Tuần trước đó"
-              className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent cursor-pointer transition-colors"
-            >
-              <ChevronLeft size={16} />
-            </button>
-            <div className="relative">
-              <select
-                value={selectedWeekId}
-                onChange={(e) => {
-                  setSelectedWeekId(e.target.value);
-                  setSelectedDay('All');
-                }}
-                className="bg-transparent text-xs font-bold text-slate-800 pl-2 pr-6 py-1 outline-none cursor-pointer appearance-none"
-              >
-                {availableWeeks.map(w => (
-                  <option key={w.id} value={w.id}>
-                    {w.isCurrent ? `📅 ${w.label} (Đang chạy)` : `📅 ${w.label}`}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown size={12} className="absolute right-1 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-            </div>
-            <button
-              type="button"
-              onClick={handleNewerWeek}
-              disabled={selectedWeekIndex <= 0}
-              title="Tuần sau đó"
-              className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent cursor-pointer transition-colors"
-            >
-              <ChevronRight size={16} />
-            </button>
-          </div>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-black text-slate-900 tracking-tight">Tổng Quan Doanh Thu</h2>
+          <p className="text-slate-500 text-sm mt-0.5">Dữ liệu tài chính, hiệu quả quảng cáo và hiệu suất làm việc</p>
         </div>
 
         {user.role === 'manager' && (
-          <div className="flex flex-wrap items-center gap-2.5">
+          <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
             <button 
               onClick={handleSyncFbAds}
               disabled={isSyncingAds}
@@ -641,7 +571,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               className="flex items-center space-x-1.5 bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-xl transition-all shadow-sm font-semibold text-xs cursor-pointer"
               title={`Xuất file Excel đầy đủ 4 sheet báo cáo cho ${activeWeek.shortLabel || activeWeek.label}`}
             >
-              <FileDown size={15} />
+              <FileDown size={14} />
               <span>Xuất Excel</span>
             </button>
 
@@ -659,7 +589,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               >
                 {isExportingZip ? <RefreshCw size={14} className="animate-spin" /> : <Package size={14} />}
                 <span>{isExportingZip ? 'Đang nén...' : 'Gói Báo Cáo (.zip)'}</span>
-                <ChevronDown size={13} className={`transition-transform duration-200 ${showZipDropdown ? 'rotate-180' : ''}`} />
+                <ChevronDown size={12} className={`transition-transform duration-200 ${showZipDropdown ? 'rotate-180' : ''}`} />
               </button>
 
               {showZipDropdown && (
@@ -705,12 +635,48 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         )}
       </div>
 
-      {/* Day-by-Day Week Filter Toolbar */}
+      {/* Time Filter Toolbar (Week Selector + Day Buttons) */}
       <div className="bg-white p-2.5 rounded-2xl border border-slate-100 card-shadow flex items-center gap-2 overflow-x-auto scrollbar-none">
-        <div className="flex items-center gap-1.5 shrink-0 px-2 text-xs font-bold text-slate-400 uppercase tracking-wider hidden sm:flex">
-          <Calendar size={14} className="text-indigo-600" />
-          <span>Lọc ngày:</span>
+        {/* Week Selector Control */}
+        <div className="flex items-center bg-slate-50 border border-slate-200/90 rounded-xl p-0.5 shadow-sm shrink-0">
+          <button
+            type="button"
+            onClick={handleOlderWeek}
+            disabled={selectedWeekIndex >= availableWeeks.length - 1}
+            title="Tuần trước đó"
+            className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-white disabled:opacity-25 disabled:hover:bg-transparent cursor-pointer transition-colors"
+          >
+            <ChevronLeft size={15} />
+          </button>
+          <div className="relative">
+            <select
+              value={selectedWeekId}
+              onChange={(e) => {
+                setSelectedWeekId(e.target.value);
+                setSelectedDay('All');
+              }}
+              className="bg-transparent text-xs font-bold text-slate-800 pl-2 pr-6 py-1 outline-none cursor-pointer appearance-none"
+            >
+              {availableWeeks.map(w => (
+                <option key={w.id} value={w.id}>
+                  {w.isCurrent ? `📅 ${w.label} (Đang chạy)` : `📅 ${w.label}`}
+                </option>
+              ))}
+            </select>
+            <ChevronDown size={12} className="absolute right-1 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+          </div>
+          <button
+            type="button"
+            onClick={handleNewerWeek}
+            disabled={selectedWeekIndex <= 0}
+            title="Tuần sau đó"
+            className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-white disabled:opacity-25 disabled:hover:bg-transparent cursor-pointer transition-colors"
+          >
+            <ChevronRight size={15} />
+          </button>
         </div>
+
+        <div className="h-5 w-[1px] bg-slate-200 shrink-0 mx-0.5" />
 
         <button
           type="button"
