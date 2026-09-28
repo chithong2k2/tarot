@@ -186,66 +186,76 @@ export const ShiftView: React.FC<ShiftViewProps> = ({
       exit={{ opacity: 0, x: -20 }}
       className="space-y-8"
     >
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-4">
-          <div>
-            <h2 className="text-2xl font-bold text-slate-900">Quản Lý Ca Trực</h2>
-            <p className="text-slate-500">Xem và quản lý lịch trực hàng tuần</p>
+      {/* Top Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <h2 className="text-2xl font-black text-slate-900 tracking-tight">Quản Lý Ca Trực</h2>
+            {settings.is_locked ? (
+              <div className="bg-amber-100 text-amber-700 px-3 py-1 rounded-full flex items-center space-x-1.5 border border-amber-200 animate-pulse shrink-0">
+                <Lock size={13} />
+                <span className="text-[11px] font-bold uppercase tracking-wider">Đã Khóa</span>
+              </div>
+            ) : (
+              <div className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full flex items-center space-x-1.5 border border-emerald-200 shrink-0">
+                <Unlock size={13} />
+                <span className="text-[11px] font-bold uppercase tracking-wider">Đang Mở</span>
+              </div>
+            )}
           </div>
-          {settings.is_locked ? (
-            <div className="bg-amber-100 text-amber-700 px-3 py-1 rounded-full flex items-center space-x-1.5 border border-amber-200 animate-pulse">
-              <Lock size={14} />
-              <span className="text-xs font-bold uppercase tracking-wider">Đã Khóa</span>
-            </div>
-          ) : (
-            <div className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full flex items-center space-x-1.5 border border-emerald-200">
-              <Unlock size={14} />
-              <span className="text-xs font-bold uppercase tracking-wider">Đang Mở</span>
-            </div>
-          )}
+          <p className="text-slate-500 text-xs sm:text-sm mt-0.5">Xem và quản lý lịch trực hàng tuần</p>
         </div>
-        <div className="flex items-center gap-3">
-          {user.role === 'manager' && (
+
+        {user.role === 'manager' && (
+          <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
             <button 
               onClick={handleToggleLock}
               disabled={loading}
-              className={`flex items-center space-x-2 px-6 py-2.5 rounded-xl font-bold transition-all border shadow-sm ${
+              className={`flex-1 sm:flex-initial flex items-center justify-center space-x-1.5 px-4 sm:px-5 py-2.5 rounded-xl font-bold transition-all border shadow-sm text-xs whitespace-nowrap cursor-pointer active:scale-[0.98] ${
                 settings.is_locked 
-                  ? 'bg-white border-amber-200 text-amber-600 hover:bg-amber-50' 
+                  ? 'bg-amber-50 border-amber-300 text-amber-800 hover:bg-amber-100' 
                   : 'bg-indigo-600 border-indigo-600 text-white hover:bg-indigo-700 shadow-indigo-100'
               }`}
             >
               {loading ? (
-                <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin shrink-0" />
               ) : settings.is_locked ? (
-                <Unlock size={18} />
+                <Unlock size={15} className="shrink-0" />
               ) : (
-                <Lock size={18} />
+                <Lock size={15} className="shrink-0" />
               )}
-              <span>{settings.is_locked ? 'Mở Khóa Đăng Ký' : 'Khóa Đăng Ký Lịch'}</span>
+              <span>{settings.is_locked ? 'Mở Khóa Đăng Ký' : 'Khóa Đăng Ký'}</span>
             </button>
-          )}
-          <div className="flex bg-white border border-slate-200 p-1 rounded-xl shadow-sm">
-            {daysOfWeek.map(day => (
-              <button
-                key={day}
-                onClick={() => setSelectedDay(day)}
-                className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${selectedDay === day ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}
-              >
-                {day}
-              </button>
-            ))}
-          </div>
-          {user.role === 'manager' && (
+
             <button 
               onClick={() => setShowShiftForm(true)}
               disabled={settings.is_locked}
-              className="bg-indigo-600 text-white p-2 rounded-xl shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all disabled:opacity-50 disabled:bg-slate-300 disabled:shadow-none"
+              className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white px-4 sm:px-5 py-2.5 rounded-xl shadow-md shadow-indigo-100 font-bold text-xs transition-all disabled:opacity-50 disabled:bg-slate-300 disabled:shadow-none whitespace-nowrap cursor-pointer active:scale-[0.98]"
+              title="Thêm ca trực mới"
             >
-              <Plus size={24} />
+              <Plus size={16} className="shrink-0" />
+              <span>Thêm Ca Mới</span>
             </button>
-          )}
-        </div>
+          </div>
+        )}
+      </div>
+
+      {/* Days Filter Bar */}
+      <div className="bg-white p-2 rounded-2xl border border-slate-100 card-shadow flex items-center gap-1.5 overflow-x-auto scrollbar-none">
+        {daysOfWeek.map(day => (
+          <button
+            key={day}
+            type="button"
+            onClick={() => setSelectedDay(day)}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
+              selectedDay === day 
+                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' 
+                : 'bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-900 border border-slate-200/60'
+            }`}
+          >
+            {day}
+          </button>
+        ))}
       </div>
 
       <AnimatePresence>
