@@ -541,143 +541,143 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       className="space-y-6"
     >
       {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-black text-slate-900 tracking-tight">Tổng Quan Doanh Thu</h2>
           <p className="text-slate-500 text-sm mt-0.5">Dữ liệu tài chính, hiệu quả quảng cáo và hiệu suất làm việc</p>
         </div>
 
-        {user.role === 'manager' && (
-          <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
-            <button 
-              onClick={handleSyncFbAds}
-              disabled={isSyncingAds}
-              className="flex items-center space-x-1.5 bg-blue-50 border border-blue-200 px-3.5 py-2 rounded-xl text-blue-700 hover:bg-blue-100 transition-colors shadow-sm font-semibold text-xs cursor-pointer disabled:opacity-60"
-              title="Đồng bộ chi phí quảng cáo realtime từ Meta Graph API"
+        <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
+          {/* Week Selector Control */}
+          <div className="flex items-center bg-white border border-slate-200/90 rounded-xl p-0.5 shadow-sm shrink-0">
+            <button
+              type="button"
+              onClick={handleOlderWeek}
+              disabled={selectedWeekIndex >= availableWeeks.length - 1}
+              title="Tuần trước đó"
+              className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-slate-50 disabled:opacity-25 disabled:hover:bg-transparent cursor-pointer transition-colors"
             >
-              <RefreshCw size={14} className={isSyncingAds ? 'animate-spin' : ''} />
-              <span>{isSyncingAds ? 'Đang đồng bộ...' : (syncAdsSuccess || 'Đồng Bộ Ads')}</span>
+              <ChevronLeft size={15} />
             </button>
-            <button 
-              onClick={() => {
-                exportToExcel(weekSales, users, activeWeekSummary, {
-                  periodTitle: activeWeek.label,
-                  adHistory: weekAdHistory,
-                  operatingCosts: weekCosts,
-                  startDateStr: activeWeek.startStr,
-                  endDateStr: activeWeek.endStr
-                });
-              }}
-              className="flex items-center space-x-1.5 bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-xl transition-all shadow-sm font-semibold text-xs cursor-pointer"
-              title={`Xuất file Excel đầy đủ 4 sheet báo cáo cho ${activeWeek.shortLabel || activeWeek.label}`}
-            >
-              <FileDown size={14} />
-              <span>Xuất Excel</span>
-            </button>
-
-            {/* ZIP Report Package Dropdown */}
             <div className="relative">
-              <button
-                type="button"
-                disabled={isExportingZip}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowZipDropdown(!showZipDropdown);
+              <select
+                value={selectedWeekId}
+                onChange={(e) => {
+                  setSelectedWeekId(e.target.value);
+                  setSelectedDay('All');
                 }}
-                className="flex items-center space-x-1.5 bg-indigo-50 border border-indigo-200 px-3.5 py-2 rounded-xl text-indigo-700 hover:bg-indigo-100 transition-colors shadow-sm font-semibold text-xs cursor-pointer disabled:opacity-60"
-                title="Tải trọn bộ file báo cáo & sao lưu dạng thư mục ZIP"
+                className="bg-transparent text-xs font-bold text-slate-800 pl-2 pr-6 py-1 outline-none cursor-pointer appearance-none"
               >
-                {isExportingZip ? <RefreshCw size={14} className="animate-spin" /> : <Package size={14} />}
-                <span>{isExportingZip ? 'Đang nén...' : 'Gói Báo Cáo (.zip)'}</span>
-                <ChevronDown size={12} className={`transition-transform duration-200 ${showZipDropdown ? 'rotate-180' : ''}`} />
+                {availableWeeks.map(w => (
+                  <option key={w.id} value={w.id}>
+                    {w.isCurrent ? `📅 ${w.label} (Đang chạy)` : `📅 ${w.label}`}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown size={12} className="absolute right-1 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            </div>
+            <button
+              type="button"
+              onClick={handleNewerWeek}
+              disabled={selectedWeekIndex <= 0}
+              title="Tuần sau đó"
+              className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-slate-50 disabled:opacity-25 disabled:hover:bg-transparent cursor-pointer transition-colors"
+            >
+              <ChevronRight size={15} />
+            </button>
+          </div>
+
+          {user.role === 'manager' && (
+            <>
+              <button 
+                onClick={handleSyncFbAds}
+                disabled={isSyncingAds}
+                className="flex items-center space-x-1.5 bg-blue-50 border border-blue-200 px-3.5 py-2 rounded-xl text-blue-700 hover:bg-blue-100 transition-colors shadow-sm font-semibold text-xs cursor-pointer disabled:opacity-60"
+                title="Đồng bộ chi phí quảng cáo realtime từ Meta Graph API"
+              >
+                <RefreshCw size={14} className={isSyncingAds ? 'animate-spin' : ''} />
+                <span>{isSyncingAds ? 'Đang đồng bộ...' : (syncAdsSuccess || 'Đồng Bộ Ads')}</span>
+              </button>
+              <button 
+                onClick={() => {
+                  exportToExcel(weekSales, users, activeWeekSummary, {
+                    periodTitle: activeWeek.label,
+                    adHistory: weekAdHistory,
+                    operatingCosts: weekCosts,
+                    startDateStr: activeWeek.startStr,
+                    endDateStr: activeWeek.endStr
+                  });
+                }}
+                className="flex items-center space-x-1.5 bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-xl transition-all shadow-sm font-semibold text-xs cursor-pointer"
+                title={`Xuất file Excel đầy đủ 4 sheet báo cáo cho ${activeWeek.shortLabel || activeWeek.label}`}
+              >
+                <FileDown size={14} />
+                <span>Xuất Excel</span>
               </button>
 
-              {showZipDropdown && (
-                <div 
-                  className="absolute right-0 top-full mt-2 w-72 bg-white rounded-2xl shadow-2xl border border-slate-100 p-2 z-50 space-y-1.5"
-                  onClick={(e) => e.stopPropagation()}
+              {/* ZIP Report Package Dropdown */}
+              <div className="relative">
+                <button
+                  type="button"
+                  disabled={isExportingZip}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowZipDropdown(!showZipDropdown);
+                  }}
+                  className="flex items-center space-x-1.5 bg-indigo-50 border border-indigo-200 px-3.5 py-2 rounded-xl text-indigo-700 hover:bg-indigo-100 transition-colors shadow-sm font-semibold text-xs cursor-pointer disabled:opacity-60"
+                  title="Tải trọn bộ file báo cáo & sao lưu dạng thư mục ZIP"
                 >
-                  <div className="px-3 py-1.5 border-b border-slate-100">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Chọn kỳ đóng gói (.zip)</p>
+                  {isExportingZip ? <RefreshCw size={14} className="animate-spin" /> : <Package size={14} />}
+                  <span>{isExportingZip ? 'Đang nén...' : 'Gói Báo Cáo (.zip)'}</span>
+                  <ChevronDown size={12} className={`transition-transform duration-200 ${showZipDropdown ? 'rotate-180' : ''}`} />
+                </button>
+
+                {showZipDropdown && (
+                  <div 
+                    className="absolute right-0 top-full mt-2 w-72 bg-white rounded-2xl shadow-2xl border border-slate-100 p-2 z-50 space-y-1.5"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="px-3 py-1.5 border-b border-slate-100">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Chọn kỳ đóng gói (.zip)</p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleExportZip('week')}
+                      className="w-full text-left p-2.5 rounded-xl hover:bg-indigo-50 transition-colors flex items-start gap-2.5 group cursor-pointer"
+                    >
+                      <div className="p-2 rounded-lg bg-indigo-100 text-indigo-700 group-hover:bg-indigo-600 group-hover:text-white transition-colors mt-0.5 shrink-0">
+                        <Calendar size={16} />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-slate-800 group-hover:text-indigo-700">Trọn Gói Tuần Này</p>
+                        <p className="text-[10px] text-slate-400 mt-0.5">Doanh thu tuần, Bảng lương tuần, Tóm tắt Zalo & Bản backup</p>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleExportZip('month')}
+                      className="w-full text-left p-2.5 rounded-xl hover:bg-purple-50 transition-colors flex items-start gap-2.5 group cursor-pointer"
+                    >
+                      <div className="p-2 rounded-lg bg-purple-100 text-purple-700 group-hover:bg-purple-600 group-hover:text-white transition-colors mt-0.5 shrink-0">
+                        <Archive size={16} />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-slate-800 group-hover:text-purple-700">Trọn Gói Cả Tháng Này</p>
+                        <p className="text-[10px] text-slate-400 mt-0.5">Tổng kết tháng, Lãi ròng, Bảng kê lương tháng & Bản backup</p>
+                      </div>
+                    </button>
                   </div>
-
-                  <button
-                    type="button"
-                    onClick={() => handleExportZip('week')}
-                    className="w-full text-left p-2.5 rounded-xl hover:bg-indigo-50 transition-colors flex items-start gap-2.5 group cursor-pointer"
-                  >
-                    <div className="p-2 rounded-lg bg-indigo-100 text-indigo-700 group-hover:bg-indigo-600 group-hover:text-white transition-colors mt-0.5 shrink-0">
-                      <Calendar size={16} />
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-slate-800 group-hover:text-indigo-700">Trọn Gói Tuần Này</p>
-                      <p className="text-[10px] text-slate-400 mt-0.5">Doanh thu tuần, Bảng lương tuần, Tóm tắt Zalo & Bản backup</p>
-                    </div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleExportZip('month')}
-                    className="w-full text-left p-2.5 rounded-xl hover:bg-purple-50 transition-colors flex items-start gap-2.5 group cursor-pointer"
-                  >
-                    <div className="p-2 rounded-lg bg-purple-100 text-purple-700 group-hover:bg-purple-600 group-hover:text-white transition-colors mt-0.5 shrink-0">
-                      <Archive size={16} />
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-slate-800 group-hover:text-purple-700">Trọn Gói Cả Tháng Này</p>
-                      <p className="text-[10px] text-slate-400 mt-0.5">Tổng kết tháng, Lãi ròng, Bảng kê lương tháng & Bản backup</p>
-                    </div>
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
+                )}
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
-      {/* Time Filter Toolbar (Week Selector + Day Buttons) */}
+      {/* Time Filter Toolbar (Day Buttons) */}
       <div className="bg-white p-2.5 rounded-2xl border border-slate-100 card-shadow flex items-center gap-2 overflow-x-auto scrollbar-none">
-        {/* Week Selector Control */}
-        <div className="flex items-center bg-slate-50 border border-slate-200/90 rounded-xl p-0.5 shadow-sm shrink-0">
-          <button
-            type="button"
-            onClick={handleOlderWeek}
-            disabled={selectedWeekIndex >= availableWeeks.length - 1}
-            title="Tuần trước đó"
-            className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-white disabled:opacity-25 disabled:hover:bg-transparent cursor-pointer transition-colors"
-          >
-            <ChevronLeft size={15} />
-          </button>
-          <div className="relative">
-            <select
-              value={selectedWeekId}
-              onChange={(e) => {
-                setSelectedWeekId(e.target.value);
-                setSelectedDay('All');
-              }}
-              className="bg-transparent text-xs font-bold text-slate-800 pl-2 pr-6 py-1 outline-none cursor-pointer appearance-none"
-            >
-              {availableWeeks.map(w => (
-                <option key={w.id} value={w.id}>
-                  {w.isCurrent ? `📅 ${w.label} (Đang chạy)` : `📅 ${w.label}`}
-                </option>
-              ))}
-            </select>
-            <ChevronDown size={12} className="absolute right-1 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-          </div>
-          <button
-            type="button"
-            onClick={handleNewerWeek}
-            disabled={selectedWeekIndex <= 0}
-            title="Tuần sau đó"
-            className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-white disabled:opacity-25 disabled:hover:bg-transparent cursor-pointer transition-colors"
-          >
-            <ChevronRight size={15} />
-          </button>
-        </div>
-
-        <div className="h-5 w-[1px] bg-slate-200 shrink-0 mx-0.5" />
-
         <button
           type="button"
           onClick={() => setSelectedDay('All')}
