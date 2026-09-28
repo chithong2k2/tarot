@@ -13,6 +13,8 @@ import {
   Trash2,
   FileDown,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Facebook,
   BarChart2,
   Sparkles,
@@ -24,7 +26,6 @@ import {
   Info,
   Search,
   PlusCircle,
-  ChevronRight,
   X,
   Clock,
   Package,
@@ -47,19 +48,33 @@ import {
   Cell,
   ReferenceLine
 } from 'recharts';
-import { User, SaleRecord, DashboardSummary, AdHistoryRecord } from '../../types';
+import { User, SaleRecord, DashboardSummary, AdHistoryRecord, OperatingCost, PayrollPeriod } from '../../types';
 import { firebaseService } from '../../services/firebaseService';
 import { apiService } from '../../services/api';
 import { StatCard, formatVND } from '../DashboardComponents';
 import { exportToExcel } from '../../utils/export';
+import { calculateDashboardSummary } from '../../utils/dashboard';
 import { getVNDayName, getVNMonday, getVNTime } from '../../utils/dateUtils';
 
 import { ConfirmModal } from '../ConfirmModal';
+
+export interface AvailableWeek {
+  id: string;
+  label: string;
+  shortLabel: string;
+  startDate: Date;
+  endDate: Date;
+  startStr: string;
+  endStr: string;
+  isCurrent: boolean;
+}
 
 interface DashboardViewProps {
   user: User;
   summary: DashboardSummary | null;
   adHistory: AdHistoryRecord[];
+  costs?: OperatingCost[];
+  payrollPeriods?: PayrollPeriod[];
   fetchData: () => void;
   sales: SaleRecord[];
   users: User[];
@@ -74,7 +89,9 @@ interface DashboardViewProps {
 export const DashboardView: React.FC<DashboardViewProps> = ({
   user,
   summary,
-  adHistory,
+  adHistory = [],
+  costs = [],
+  payrollPeriods = [],
   fetchData,
   sales,
   users,
@@ -125,10 +142,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     try {
       const res = await exportReportPackage({
         mode,
-        sales,
+        sales: weekSales,
         users,
-        adHistory,
-        costs: []
+        adHistory: weekAdHistory,
+        costs: weekCosts
       });
       if (res.success) {
         alert(res.message);
@@ -219,9 +236,143 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     }
   };
 
-  // Generate Week Days (Thứ 2 -> Chủ nhật)
+  // Week Selector State
+  const [selectedWeekId, setSelectedWeekId] = React.useState<string>('current');
+
+  // Available Weeks
+  const availableWeeks = React.useMemo<AvailableWeek[]>(() => {
+    const weeks: AvailableWeek[] = [];
+    const baseMonday = getVNMonday();
+    baseMonday.setHours(0, 0, 0, 0);
+
+    const formatDM = (d: Date) => {
+      return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+    };
+
+    const formatYMD = (d: Date) => {
+      return new Intl.DateTimeFormat('sv-SE', {
+        timeZone: 'Asia/Ho_Chi_Minh',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      }).format(d);
+    };
+
+    let maxWeeks = 12;
+
+    sales.forEach(s => {
+      if (s.date) {
+        const d = new Date(`${s.date}T00:00:00+07:00`);
+        if (!isNaN(d.getTime())) {
+          const diffWeeks = Math.ceil((baseMonday.getTime() - d.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1;
+          if (diffWeeks > maxWeeks) maxWeeks = Math.min(diffWeeks, 52);
+        }
+      }
+    });
+
+    payrollPeriods.forEach(p => {
+      if (p.start_date) {
+        const d = new Date(`${p.start_date}T00:00:00+07:00`);
+        if (!isNaN(d.getTime())) {
+          const diffWeeks = Math.ceil((baseMonday.getTime() - d.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1;
+          if (diffWeeks > maxWeeks) maxWeeks = Math.min(diffWeeks, 52);
+        }
+      }
+    });
+
+    for (let i = 0; i < maxWeeks; i++) {
+      const sDate = new Date(baseMonday);
+      sDate.setDate(baseMonday.getDate() - (i * 7));
+      sDate.setHours(0, 0, 0, 0);
+
+      const eDate = new Date(sDate);
+      eDate.setDate(sDate.getDate() + 6);
+      eDate.setHours(23, 59, 59, 999);
+
+      const startStr = formatYMD(sDate);
+      const endStr = formatYMD(eDate);
+      const isCurrent = i === 0;
+
+      let label = '';
+      let shortLabel = '';
+      if (i === 0) {
+        label = `Tuần này (${formatDM(sDate)} - ${formatDM(eDate)})`;
+        shortLabel = 'Tuần này';
+      } else if (i === 1) {
+        label = `Tuần trước (${formatDM(sDate)} - ${formatDM(eDate)})`;
+        shortLabel = 'Tuần trước';
+      } else {
+        label = `${i} tuần trước (${formatDM(sDate)} - ${formatDM(eDate)})`;
+        shortLabel = `${i} tuần trước`;
+      }
+
+      const matchedPayroll = payrollPeriods.find(p => p.start_date === startStr && p.end_date === endStr);
+      if (matchedPayroll) {
+        label += ' 🔖 [Đã chốt]';
+      }
+
+      weeks.push({
+        id: i === 0 ? 'current' : `week-${i}`,
+        label,
+        shortLabel,
+        startDate: sDate,
+        endDate: eDate,
+        startStr,
+        endStr,
+        isCurrent
+      });
+    }
+
+    return weeks;
+  }, [sales, payrollPeriods]);
+
+  const activeWeek = React.useMemo(() => {
+    return availableWeeks.find(w => w.id === selectedWeekId) || availableWeeks[0];
+  }, [availableWeeks, selectedWeekId]);
+
+  const selectedWeekIndex = availableWeeks.findIndex(w => w.id === activeWeek.id);
+
+  const handleOlderWeek = () => {
+    if (selectedWeekIndex < availableWeeks.length - 1) {
+      setSelectedWeekId(availableWeeks[selectedWeekIndex + 1].id);
+      setSelectedDay('All');
+    }
+  };
+
+  const handleNewerWeek = () => {
+    if (selectedWeekIndex > 0) {
+      setSelectedWeekId(availableWeeks[selectedWeekIndex - 1].id);
+      setSelectedDay('All');
+    }
+  };
+
+  // Filter Data for Selected Week
+  const weekSales = React.useMemo(() => {
+    return sales.filter(s => s.date >= activeWeek.startStr && s.date <= activeWeek.endStr);
+  }, [sales, activeWeek]);
+
+  const weekAdHistory = React.useMemo(() => {
+    return (adHistory || []).filter(h => h.date >= activeWeek.startStr && h.date <= activeWeek.endStr);
+  }, [adHistory, activeWeek]);
+
+  const weekCosts = React.useMemo(() => {
+    return (costs || []).filter(c => c.date >= activeWeek.startStr && c.date <= activeWeek.endStr);
+  }, [costs, activeWeek]);
+
+  const activeWeekSummary = React.useMemo(() => {
+    return calculateDashboardSummary(
+      weekSales,
+      users,
+      weekCosts,
+      weekAdHistory,
+      activeWeek.startDate,
+      activeWeek.endDate
+    );
+  }, [weekSales, users, weekCosts, weekAdHistory, activeWeek]);
+
+  // Generate Week Days for the active week (Thứ 2 -> Chủ nhật)
   const weekDays = React.useMemo(() => {
-    const mon = getVNMonday();
+    const mon = new Date(activeWeek.startDate);
     const dayNames = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ nhật'];
     const todayName = getVNDayName();
 
@@ -230,7 +381,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       d.setDate(mon.getDate() + idx);
       const dateFormatted = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
       const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-      const isToday = name === todayName;
+      const isToday = activeWeek.isCurrent && (name === todayName);
       return {
         key: name,
         name,
@@ -239,28 +390,28 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         isToday
       };
     });
-  }, []);
+  }, [activeWeek]);
 
-  // Filtered Sales according to selectedDay
+  // Filtered Sales according to selectedDay within active week
   const filteredSalesByDay = React.useMemo(() => {
-    if (selectedDay === 'All') return sales;
-    return sales.filter(s => getDayName(s.date) === selectedDay);
-  }, [sales, selectedDay]);
+    if (selectedDay === 'All') return weekSales;
+    return weekSales.filter(s => getDayName(s.date) === selectedDay);
+  }, [weekSales, selectedDay]);
 
-  // Dynamic Financial Metrics based on selectedDay
+  // Dynamic Financial Metrics based on selectedDay & activeWeek
   const currentDayStats = React.useMemo(() => {
     if (selectedDay === 'All') {
-      const rev = summary?.totalRevenue || 0;
-      const profit = summary?.netProfit || 0;
-      const adSpend = summary?.totalAdSpend || 0;
-      const commission = (summary?.totalReaderCommission || 0) + (summary?.totalSaleCommission || 0);
-      const salesCount = sales.length;
+      const rev = activeWeekSummary?.totalRevenue || 0;
+      const profit = activeWeekSummary?.netProfit || 0;
+      const adSpend = activeWeekSummary?.totalAdSpend || 0;
+      const commission = (activeWeekSummary?.totalReaderCommission || 0) + (activeWeekSummary?.totalSaleCommission || 0);
+      const salesCount = weekSales.length;
       const netMargin = rev > 0 ? (profit / rev) * 100 : 0;
       const roas = adSpend > 0 ? (rev / adSpend) : null;
       const cpa = (adSpend > 0 && salesCount > 0) ? (adSpend / salesCount) : null;
 
       return {
-        title: 'Cả Tuần Này',
+        title: activeWeek.isCurrent ? 'Cả Tuần Này' : activeWeek.label,
         revenue: rev,
         profit,
         adSpend,
@@ -273,7 +424,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     }
 
     const dayObj = weekDays.find(w => w.name === selectedDay);
-    const dayStat = summary?.dailyStats?.find(d => d.name === selectedDay);
+    const dayStat = activeWeekSummary?.dailyStats?.find(d => d.name === selectedDay);
     const rev = dayStat?.revenue || 0;
     const profit = dayStat?.profit || 0;
     const adSpend = dayStat?.adSpend || 0;
@@ -294,7 +445,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       roas,
       cpa
     };
-  }, [selectedDay, summary, sales, filteredSalesByDay, weekDays]);
+  }, [selectedDay, activeWeekSummary, weekSales, filteredSalesByDay, weekDays, activeWeek]);
 
   // Non-manager metrics for reader / sale
   const staffPersonalMetrics = React.useMemo(() => {
@@ -318,10 +469,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   // Personal daily chart data for reader / sale
   const staffDailyStats = React.useMemo(() => {
-    if (user.role === 'manager') return summary?.dailyStats || [];
+    if (user.role === 'manager') return activeWeekSummary?.dailyStats || [];
 
     return weekDays.map(d => {
-      const daySales = sales.filter(s => getDayName(s.date) === d.name);
+      const daySales = weekSales.filter(s => getDayName(s.date) === d.name);
       const pkgAmount = daySales.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
       const tipAmount = daySales.reduce((sum, s) => sum + (Number(s.tip) || 0), 0);
       const revenue = pkgAmount + tipAmount;
@@ -336,9 +487,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         adSpend: 0
       };
     });
-  }, [user, summary, sales, weekDays]);
+  }, [user, activeWeekSummary, weekSales, weekDays]);
 
-  const activeDailyStats = user.role === 'manager' ? (summary?.dailyStats || []) : staffDailyStats;
+  const activeDailyStats = user.role === 'manager' ? (activeWeekSummary?.dailyStats || []) : staffDailyStats;
 
   // ROAS Badge Configuration
   const roasBadge = React.useMemo(() => {
@@ -416,18 +567,60 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       className="space-y-6"
     >
       {/* Top Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center space-x-2">
-            <h2 className="text-2xl font-black text-slate-900 tracking-tight">Tổng Quan Doanh Thu</h2>
-            <span className="text-xs bg-indigo-50 text-indigo-700 font-bold px-2.5 py-1 rounded-full border border-indigo-200/60">
-              {currentDayStats.title}
-            </span>
+      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-2xl font-black text-slate-900 tracking-tight">Tổng Quan Doanh Thu</h2>
+              <span className="text-xs bg-indigo-50 text-indigo-700 font-bold px-2.5 py-1 rounded-full border border-indigo-200/60">
+                {currentDayStats.title}
+              </span>
+            </div>
+            <p className="text-slate-500 text-sm mt-0.5">Dữ liệu tài chính, hiệu quả quảng cáo và hiệu suất làm việc</p>
           </div>
-          <p className="text-slate-500 text-sm mt-0.5">Dữ liệu tài chính, hiệu quả quảng cáo và hiệu suất làm việc</p>
+
+          {/* Week Selector Control */}
+          <div className="flex items-center bg-white border border-slate-200/90 rounded-xl p-1 shadow-sm shrink-0 self-start sm:self-center">
+            <button
+              type="button"
+              onClick={handleOlderWeek}
+              disabled={selectedWeekIndex >= availableWeeks.length - 1}
+              title="Tuần trước đó"
+              className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent cursor-pointer transition-colors"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <div className="relative">
+              <select
+                value={selectedWeekId}
+                onChange={(e) => {
+                  setSelectedWeekId(e.target.value);
+                  setSelectedDay('All');
+                }}
+                className="bg-transparent text-xs font-bold text-slate-800 pl-2 pr-6 py-1 outline-none cursor-pointer appearance-none"
+              >
+                {availableWeeks.map(w => (
+                  <option key={w.id} value={w.id}>
+                    {w.isCurrent ? `📅 ${w.label} (Đang chạy)` : `📅 ${w.label}`}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown size={12} className="absolute right-1 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            </div>
+            <button
+              type="button"
+              onClick={handleNewerWeek}
+              disabled={selectedWeekIndex <= 0}
+              title="Tuần sau đó"
+              className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent cursor-pointer transition-colors"
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
         </div>
+
         {user.role === 'manager' && (
-          <div className="flex items-center gap-2.5">
+          <div className="flex flex-wrap items-center gap-2.5">
             <button 
               onClick={handleSyncFbAds}
               disabled={isSyncingAds}
@@ -438,8 +631,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <span>{isSyncingAds ? 'Đang đồng bộ...' : (syncAdsSuccess || 'Đồng Bộ Ads')}</span>
             </button>
             <button 
-              onClick={() => summary && exportToExcel(sales, users, summary)}
-              className="flex items-center space-x-1.5 bg-emerald-50 border border-emerald-100 px-3.5 py-2 rounded-xl text-emerald-700 hover:bg-emerald-100 transition-colors shadow-sm font-semibold text-xs cursor-pointer"
+              onClick={() => {
+                exportToExcel(weekSales, users, activeWeekSummary, {
+                  periodTitle: activeWeek.label,
+                  adHistory: weekAdHistory,
+                  operatingCosts: weekCosts,
+                  startDateStr: activeWeek.startStr,
+                  endDateStr: activeWeek.endStr
+                });
+              }}
+              className="flex items-center space-x-1.5 bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-xl transition-all shadow-sm font-semibold text-xs cursor-pointer"
+              title={`Xuất file Excel đầy đủ 4 sheet báo cáo cho ${activeWeek.shortLabel || activeWeek.label}`}
             >
               <FileDown size={15} />
               <span>Xuất Excel</span>
@@ -560,7 +762,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               : 'bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-900 border border-slate-200/60'
           }`}
         >
-          <span>📅 Cả Tuần Này</span>
+          <span>📅 {activeWeek.isCurrent ? 'Cả Tuần Này' : `Cả ${activeWeek.shortLabel || 'Tuần'}`}</span>
         </button>
 
         <div className="h-5 w-[1px] bg-slate-200 shrink-0 my-auto mx-0.5" />
@@ -1171,11 +1373,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </div>
               <div className="flex items-center space-x-4">
                 <div className="w-12 h-12 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600 font-bold text-xl">
-                  {summary?.topReader.name.charAt(0)}
+                  {activeWeekSummary?.topReader?.name ? activeWeekSummary.topReader.name.charAt(0) : '-'}
                 </div>
                 <div>
-                  <p className="font-bold text-slate-900">{summary?.topReader.name}</p>
-                  <p className="text-sm text-slate-500">{formatVND(summary?.topReader.amount || 0)}</p>
+                  <p className="font-bold text-slate-900">{activeWeekSummary?.topReader?.name || 'Chưa có'}</p>
+                  <p className="text-sm text-slate-500">{formatVND(activeWeekSummary?.topReader?.amount || 0)}</p>
                 </div>
               </div>
             </div>
@@ -1187,11 +1389,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </div>
               <div className="flex items-center space-x-4">
                 <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600 font-bold text-xl">
-                  {summary?.topSale.name.charAt(0)}
+                  {activeWeekSummary?.topSale?.name ? activeWeekSummary.topSale.name.charAt(0) : '-'}
                 </div>
                 <div>
-                  <p className="font-bold text-slate-900">{summary?.topSale.name}</p>
-                  <p className="text-sm text-slate-500">{formatVND(summary?.topSale.amount || 0)}</p>
+                  <p className="font-bold text-slate-900">{activeWeekSummary?.topSale?.name || 'Chưa có'}</p>
+                  <p className="text-sm text-slate-500">{formatVND(activeWeekSummary?.topSale?.amount || 0)}</p>
                 </div>
               </div>
             </div>
@@ -1335,7 +1537,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   const query = searchQuery.trim().toLowerCase();
 
                   // Group sales by staff, with search and day filtering
-                  const groupedSales = sales.reduce((acc: Record<string, SaleRecord[]>, sale) => {
+                  const groupedSales = weekSales.reduce((acc: Record<string, SaleRecord[]>, sale) => {
                     const rawId = effectiveStaffType === 'reader' 
                       ? (sale.reader_id || (sale as any).reader_name)
                       : (sale.sale_id || (sale as any).sale_name);
@@ -1383,7 +1585,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                             <p className="font-semibold text-slate-600 text-sm">
                               {searchQuery 
                                 ? `Không tìm thấy giao dịch nào phù hợp với từ khóa "${searchQuery}"`
-                                : `Không có giao dịch nào ${selectedDay === 'All' ? 'trong tuần này' : `trong ngày ${selectedDay}`}`}
+                                : `Không có giao dịch nào ${selectedDay === 'All' ? `trong ${activeWeek.label.toLowerCase()}` : `trong ngày ${selectedDay}`}`}
                             </p>
                             {searchQuery && (
                               <button
@@ -1411,8 +1613,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     const todayRevenue = todayAmount + todayTip;
                     const todayCommission = (todayAmount * commissionPercent / 100);
 
-                    // Weekly stats for this staff
-                    const weeklySales = sales.filter(s => {
+                    // Weekly stats for this staff in selected week
+                    const weeklySales = weekSales.filter(s => {
                       const rawId = effectiveStaffType === 'reader' 
                         ? (s.reader_id || (s as any).reader_name)
                         : (s.sale_id || (s as any).sale_name);
@@ -1616,7 +1818,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 const effectiveStaffType = user.role === 'manager' ? staffType : user.role;
                 const query = searchQuery.trim().toLowerCase();
 
-                const filtered = sales.filter(s => {
+                const filtered = weekSales.filter(s => {
                   const rawId = effectiveStaffType === 'reader' 
                     ? (s.reader_id || (s as any).reader_name)
                     : (s.sale_id || (s as any).sale_name);

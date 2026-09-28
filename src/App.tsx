@@ -495,6 +495,8 @@ export default function App() {
             user={user}
             summary={summary || INITIAL_SUMMARY}
             adHistory={adHistory}
+            costs={costs}
+            payrollPeriods={payrollPeriods}
             fetchData={fetchData}
             sales={sales}
             users={users}
@@ -591,6 +593,8 @@ export default function App() {
             user={user}
             summary={summary || INITIAL_SUMMARY}
             adHistory={adHistory}
+            costs={costs}
+            payrollPeriods={payrollPeriods}
             fetchData={fetchData}
             sales={sales}
             users={users}

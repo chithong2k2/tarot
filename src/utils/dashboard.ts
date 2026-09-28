@@ -5,7 +5,9 @@ export const calculateDashboardSummary = (
   sales: SaleRecord[], 
   users: User[], 
   operatingCosts: OperatingCost[] = [],
-  adHistory: AdHistoryRecord[] = []
+  adHistory: AdHistoryRecord[] = [],
+  customStartOfWeek?: Date,
+  customEndOfWeek?: Date
 ): DashboardSummary => {
   let totalAmount = 0;
   let totalTip = 0;
@@ -50,12 +52,18 @@ export const calculateDashboardSummary = (
     }
   };
 
-  const startOfWeek = getVNMonday();
+  const startOfWeek = customStartOfWeek ? new Date(customStartOfWeek) : getVNMonday();
   startOfWeek.setHours(0, 0, 0, 0);
+
+  const endOfWeek = customEndOfWeek ? new Date(customEndOfWeek) : new Date(startOfWeek);
+  if (!customEndOfWeek) {
+    endOfWeek.setDate(startOfWeek.getDate() + 6);
+  }
+  endOfWeek.setHours(23, 59, 59, 999);
 
   operatingCosts.forEach(c => {
     const recordDate = new Date(`${c.date}T00:00:00+07:00`);
-    if (recordDate < startOfWeek) return;
+    if (recordDate < startOfWeek || recordDate > endOfWeek) return;
 
     const amount = Number(c.amount) || 0;
     totalOperatingCosts += amount;
@@ -68,7 +76,7 @@ export const calculateDashboardSummary = (
   adHistory.forEach(h => {
     // Use Vietnam timezone for comparison
     const recordDate = new Date(`${h.date}T00:00:00+07:00`);
-    if (recordDate < startOfWeek) return;
+    if (recordDate < startOfWeek || recordDate > endOfWeek) return;
 
     const amount = Number(h.spend) || 0;
     totalAdSpend += amount;
@@ -83,7 +91,7 @@ export const calculateDashboardSummary = (
 
   sales.forEach(s => {
     const recordDate = new Date(`${s.date}T00:00:00+07:00`);
-    if (recordDate < startOfWeek) return;
+    if (recordDate < startOfWeek || recordDate > endOfWeek) return;
 
     const amount = Number(s.amount) || 0;
     const tip = Number(s.tip) || 0;
