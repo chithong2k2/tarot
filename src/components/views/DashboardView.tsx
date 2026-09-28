@@ -106,8 +106,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [showConfirmSeed, setShowConfirmSeed] = React.useState(false);
   const [isSeeding, setIsSeeding] = React.useState(false);
 
-  const [showConfirmReset, setShowConfirmReset] = React.useState(false);
-  const [isResetting, setIsResetting] = React.useState(false);
   const [deletingSale, setDeletingSaleId] = React.useState<SaleRecord | null>(null);
   const [isReaderDropdownOpen, setIsReaderDropdownOpen] = React.useState(false);
 
@@ -703,45 +701,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 </div>
               )}
             </div>
-            {!showConfirmReset ? (
-              <button 
-                onClick={() => setShowConfirmReset(true)}
-                className="flex items-center space-x-2 bg-white border border-slate-200 px-4 py-2 rounded-xl text-slate-700 hover:bg-slate-50 transition-colors shadow-sm font-semibold text-xs cursor-pointer"
-              >
-                <RefreshCcw size={16} />
-                <span>Reset Tuần Mới</span>
-              </button>
-            ) : (
-              <div className="flex items-center bg-red-50 border border-red-100 rounded-xl p-1 gap-1">
-                <span className="text-[10px] font-bold text-red-700 px-2 uppercase">Reset?</span>
-                <button 
-                  disabled={isResetting}
-                  onClick={async () => {
-                    try {
-                      setIsResetting(true);
-                      await firebaseService.resetWeek();
-                      window.alert('Đã reset tuần mới thành công! Toàn bộ giao dịch và lịch trực đã được xóa.');
-                      fetchData();
-                      setShowConfirmReset(false);
-                    } catch (err) {
-                      window.alert('Lỗi: ' + (err instanceof Error ? err.message : String(err)));
-                    } finally {
-                      setIsResetting(false);
-                    }
-                  }}
-                  className="bg-red-600 text-white text-xs px-3 py-1.5 rounded-lg hover:bg-red-700 transition-colors cursor-pointer font-bold"
-                >
-                  {isResetting ? '...' : 'CÓ'}
-                </button>
-                <button 
-                  disabled={isResetting}
-                  onClick={() => setShowConfirmReset(false)}
-                  className="bg-slate-200 text-slate-700 text-xs px-3 py-1.5 rounded-lg hover:bg-slate-300 transition-colors cursor-pointer font-bold"
-                >
-                  HỦY
-                </button>
-              </div>
-            )}
           </div>
         )}
       </div>

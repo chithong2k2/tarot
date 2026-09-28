@@ -249,6 +249,22 @@ export default function App() {
     }
   }, [user?.role]);
 
+  // Auto-archive previous week & start fresh week at 00:00 Monday
+  useEffect(() => {
+    if (!user || user.role !== 'manager') return;
+    if (sales.length === 0 && payrollPeriods.length === 0) return;
+
+    // Check once after initial data load
+    firebaseService.checkAndAutoRolloverWeek(sales, users, adHistory, payrollPeriods, fetchData);
+
+    // Heartbeat check every 60 seconds (useful when browser is kept open across midnight Sunday -> Monday)
+    const timer = setInterval(() => {
+      firebaseService.checkAndAutoRolloverWeek(sales, users, adHistory, payrollPeriods, fetchData);
+    }, 60000);
+
+    return () => clearInterval(timer);
+  }, [user?.role, sales, users, adHistory, payrollPeriods]);
+
   // Log current user ID and their transactions as requested
   useEffect(() => {
     if (user) {

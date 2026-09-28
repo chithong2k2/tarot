@@ -15,6 +15,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { User, SaleRecord, Shift, ShiftRegistration, OperatingCost, SystemSettings, AdHistoryRecord, PayrollPeriod, PayrollStaffItem } from '../types';
+import { getVNMonday, getVNTime } from '../utils/dateUtils';
 
 // Helper to check if Firebase is configured
 const isFirebaseReady = () => !!db;
@@ -547,31 +548,169 @@ export const firebaseService = {
     return snap.docs.map(d => ({ id: d.id, ...d.data() }));
   },
 
-  // --- System ---
+  // --- System & Weekly Automation ---
+  clearWeeklyShifts: async (): Promise<FirebaseResponse> => {
+    if (!isFirebaseReady()) return { success: false, message: 'Database chưa kết nối' };
+    try {
+      const batch = writeBatch(db);
+      const readerShifts = await getDocs(collection(db, 'reader_shifts'));
+      readerShifts.forEach(d => batch.delete(d.ref));
+      const saleShifts = await getDocs(collection(db, 'sale_shifts'));
+      saleShifts.forEach(d => batch.delete(d.ref));
+      await batch.commit();
+      return { success: true };
+    } catch (err: any) {
+      console.error("[FirebaseService] clearWeeklyShifts error:", err);
+      return { success: false, message: err?.message || String(err) };
+    }
+  },
+
+  checkAndAutoRolloverWeek: async (
+    sales: SaleRecord[],
+    users: User[],
+    adHistory: AdHistoryRecord[],
+    payrollPeriods: PayrollPeriod[],
+    fetchData: () => Promise<void> | void
+  ): Promise<boolean> => {
+    try {
+      const currentMonday = getVNMonday();
+      currentMonday.setHours(0, 0, 0, 0);
+
+      // Previous week Monday (00:00:00) and Sunday (23:59:59)
+      const prevMonday = new Date(currentMonday);
+      prevMonday.setDate(currentMonday.getDate() - 7);
+      prevMonday.setHours(0, 0, 0, 0);
+
+      const prevSunday = new Date(prevMonday);
+      prevSunday.setDate(prevMonday.getDate() + 6);
+      prevSunday.setHours(23, 59, 59, 999);
+
+      const formatYMD = (d: Date) => {
+        return new Intl.DateTimeFormat('sv-SE', {
+          timeZone: 'Asia/Ho_Chi_Minh',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit'
+        }).format(d);
+      };
+
+      const formatDM = (d: Date) => {
+        return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+      };
+
+      const startYMD = formatYMD(prevMonday);
+      const endYMD = formatYMD(prevSunday);
+      const periodId = `payroll_${startYMD}`;
+
+      // Check if previous week was already archived in Firestore or processed locally
+      const alreadySaved = payrollPeriods.some(p => p.id === periodId || (p.start_date === startYMD && p.end_date === endYMD));
+      const lastArchivedKey = localStorage.getItem('tarot_last_auto_archive_week');
+
+      if (alreadySaved && lastArchivedKey === startYMD) {
+        return false;
+      }
+
+      // Filter sales and adHistory for that previous week
+      const prevWeekSales = sales.filter(s => s.date >= startYMD && s.date <= endYMD);
+      const prevWeekAds = (adHistory || []).filter(h => h.date >= startYMD && h.date <= endYMD);
+
+      // If already saved or no activity at all from previous week, just mark local flag
+      if (alreadySaved || (prevWeekSales.length === 0 && prevWeekAds.length === 0)) {
+        if (lastArchivedKey !== startYMD) {
+          await firebaseService.clearWeeklyShifts();
+          try {
+            localStorage.removeItem('tarot_current_payroll_paid');
+          } catch {}
+          localStorage.setItem('tarot_last_auto_archive_week', startYMD);
+          await fetchData();
+        }
+        return false;
+      }
+
+      console.log(`[Auto-Rollover] 0:00 Monday auto-archive triggered for week: ${startYMD} - ${endYMD}`);
+
+      const prevWeekTotalRevenue = prevWeekSales.reduce(
+        (sum, s) => sum + (Number(s.amount) || 0) + (Number(s.tip) || 0),
+        0
+      );
+
+      const prevWeekAdSpend = prevWeekAds.reduce(
+        (sum, h) => sum + (Number(h.spend) || 0),
+        0
+      );
+
+      const staffItems: PayrollStaffItem[] = [];
+      users.filter(u => u.status !== 'inactive' && u.role !== 'manager').forEach(u => {
+        const uId = u.id.trim().toLowerCase();
+        const uName = u.full_name.trim().toLowerCase();
+
+        const userSales = prevWeekSales.filter(s => {
+          const rId = String(s.reader_id || (s as any).reader_name || '').trim().toLowerCase();
+          const sId = String(s.sale_id || (s as any).sale_name || '').trim().toLowerCase();
+          if (u.role === 'reader') return rId === uId || rId === uName;
+          if (u.role === 'sale') return sId === uId || sId === uName;
+          return false;
+        });
+
+        const totalAmount = userSales.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
+        const totalTip = u.role === 'reader'
+          ? userSales.reduce((sum, s) => sum + (Number(s.tip) || 0), 0)
+          : 0;
+        const commission = Math.round(totalAmount * (Number(u.commission_percent || 0) / 100));
+        const netPayout = commission + totalTip;
+
+        staffItems.push({
+          user_id: u.id,
+          user_name: u.full_name,
+          role: u.role,
+          bank_name: u.bank_name || 'MBBank',
+          bank_account: u.bank_account || '',
+          commission_percent: u.commission_percent,
+          total_amount: totalAmount,
+          total_tip: totalTip,
+          commission,
+          net_payout: netPayout,
+          is_paid: false
+        });
+      });
+
+      const totalPayout = staffItems.reduce((sum, i) => sum + i.net_payout, 0);
+      const ownerNetProfit = prevWeekTotalRevenue - totalPayout - prevWeekAdSpend;
+      const periodTitle = `Tuần (${formatDM(prevMonday)} - ${formatDM(prevSunday)})`;
+
+      const newPeriod: PayrollPeriod = {
+        id: periodId,
+        title: periodTitle,
+        start_date: startYMD,
+        end_date: endYMD,
+        total_revenue: prevWeekTotalRevenue,
+        total_payout: totalPayout,
+        total_ad_spend: prevWeekAdSpend,
+        owner_net_profit: ownerNetProfit,
+        items: staffItems,
+        created_at: new Date().toISOString()
+      };
+
+      await firebaseService.savePayrollPeriod(newPeriod);
+      await firebaseService.clearWeeklyShifts();
+
+      try {
+        localStorage.removeItem('tarot_current_payroll_paid');
+      } catch {}
+      localStorage.setItem('tarot_last_auto_archive_week', startYMD);
+
+      console.log(`[Auto-Rollover] Archived previous week ${periodId} & reset shift schedule for new week.`);
+      await fetchData();
+      return true;
+    } catch (err) {
+      console.error("[Auto-Rollover] Error:", err);
+      return false;
+    }
+  },
+
   resetWeek: async (): Promise<FirebaseResponse> => {
-    const batch = writeBatch(db);
-    
-    // 1. Clear shift registrations
-    const readerShifts = await getDocs(collection(db, 'reader_shifts'));
-    readerShifts.forEach(d => batch.delete(d.ref));
-    
-    const saleShifts = await getDocs(collection(db, 'sale_shifts'));
-    saleShifts.forEach(d => batch.delete(d.ref));
-
-    // 2. Clear sales records (as requested: "toàn bộ giao dịch của tuần đó sẽ biến mất")
-    const sales = await getDocs(collection(db, 'sales'));
-    sales.forEach(d => batch.delete(d.ref));
-
-    // 3. Clear operating costs
-    const costs = await getDocs(collection(db, 'operating_costs'));
-    costs.forEach(d => batch.delete(d.ref));
-
-    // 4. Clear ad history
-    const adHistory = await getDocs(collection(db, 'ad_history'));
-    adHistory.forEach(d => batch.delete(d.ref));
-    
-    await batch.commit();
-    return { success: true };
+    // Kept for backward compatibility: safe clear of shift schedule
+    return firebaseService.clearWeeklyShifts();
   },
 
   // --- Payroll Management ---
