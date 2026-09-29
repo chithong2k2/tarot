@@ -26,12 +26,28 @@ interface SidebarProps {
   setEditingSale: (sale: any) => void;
 }
 
-function SidebarItem({ icon, label, active, onClick }: { icon: React.ReactNode, label: string, active: boolean, onClick: () => void }) {
+function SidebarItem({ 
+  icon, 
+  label, 
+  active, 
+  href, 
+  onClick 
+}: { 
+  icon: React.ReactNode; 
+  label: string; 
+  active: boolean; 
+  href: string; 
+  onClick: () => void; 
+}) {
   return (
-    <button 
-      onClick={onClick}
+    <a 
+      href={href}
+      onClick={(e) => {
+        e.preventDefault();
+        onClick();
+      }}
       className={`
-        w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-200
+        w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-200 cursor-pointer
         ${active 
           ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' 
           : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'}
@@ -39,7 +55,7 @@ function SidebarItem({ icon, label, active, onClick }: { icon: React.ReactNode, 
     >
       {icon}
       <span className="font-medium">{label}</span>
-    </button>
+    </a>
   );
 }
 
@@ -83,6 +99,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             icon={<TrendingUp size={20} />} 
             label="Dashboard" 
             active={view === 'dashboard'} 
+            href="/dashboard"
             onClick={() => { setView('dashboard'); setIsSidebarOpen(false); }} 
           />
           {user.role === 'manager' && (
@@ -90,13 +107,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <SidebarItem 
                 icon={<Users size={20} />} 
                 label="Nhân Viên" 
-                active={view === 'staff'} 
+                active={view === 'staff' || view === 'staff_form'} 
+                href="/staff"
                 onClick={() => { setView('staff'); setIsSidebarOpen(false); }} 
               />
               <SidebarItem 
                 icon={<PlusCircle size={20} />} 
                 label="Nhập Doanh Thu" 
                 active={view === 'entry'} 
+                href="/sales"
                 onClick={() => { 
                   setEditingSale(null);
                   setView('entry'); 
@@ -107,24 +126,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 icon={<Clock size={20} />} 
                 label="Quản Lý Ca" 
                 active={view === 'shifts'} 
+                href="/shifts"
                 onClick={() => { setView('shifts'); setIsSidebarOpen(false); }} 
               />
               <SidebarItem 
                 icon={<TrendingUp size={20} />} 
                 label="Lịch Sử Giao Dịch" 
                 active={view === 'sales_history'} 
+                href="/history"
                 onClick={() => { setView('sales_history'); setIsSidebarOpen(false); }} 
               />
               <SidebarItem 
                 icon={<CreditCard size={20} />} 
                 label="Bảng Lương" 
                 active={view === 'payroll'} 
+                href="/payroll"
                 onClick={() => { setView('payroll'); setIsSidebarOpen(false); }} 
               />
               <SidebarItem 
                 icon={<Receipt size={20} />} 
                 label="Chi Phí Vận Hành" 
                 active={view === 'costs'} 
+                href="/costs"
                 onClick={() => { setView('costs'); setIsSidebarOpen(false); }} 
               />
             </>
@@ -135,6 +158,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               icon={<PlusCircle size={20} />} 
               label="Nhập Doanh Thu" 
               active={view === 'entry'} 
+              href="/sales"
               onClick={() => { 
                 setEditingSale(null);
                 setView('entry'); 
@@ -149,12 +173,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 icon={<TrendingUp size={20} />} 
                 label="Lịch Sử Đơn Của Tôi" 
                 active={view === 'sales_history'} 
+                href="/history"
                 onClick={() => { setView('sales_history'); setIsSidebarOpen(false); }} 
               />
               <SidebarItem 
                 icon={<CalendarCheck size={20} />} 
                 label="Đăng Ký Ca" 
                 active={view === 'register_shift'} 
+                href="/shifts/register"
                 onClick={() => { setView('register_shift'); setIsSidebarOpen(false); }} 
               />
             </>
@@ -164,6 +190,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             icon={<Settings size={20} />} 
             label="Cài Đặt" 
             active={view === 'settings'} 
+            href="/settings"
             onClick={() => { setView('settings'); setIsSidebarOpen(false); }} 
           />
         </nav>

@@ -20,6 +20,36 @@ import { apiService } from './services/api';
 import { Menu, X } from 'lucide-react';
 import { PayrollPeriod } from './types';
 
+export type AppView = 'dashboard' | 'staff' | 'staff_form' | 'entry' | 'shifts' | 'register_shift' | 'settings' | 'sales_history' | 'payroll' | 'costs';
+
+export const VIEW_TO_PATH: Record<AppView, string> = {
+  dashboard: '/dashboard',
+  staff: '/staff',
+  staff_form: '/staff/new',
+  entry: '/sales',
+  shifts: '/shifts',
+  register_shift: '/shifts/register',
+  sales_history: '/history',
+  payroll: '/payroll',
+  costs: '/costs',
+  settings: '/settings',
+};
+
+export const getViewFromPath = (pathname: string): AppView => {
+  const clean = pathname.toLowerCase().replace(/\/+$/, '') || '/';
+  if (clean === '/' || clean === '/dashboard') return 'dashboard';
+  if (clean === '/staff') return 'staff';
+  if (clean === '/staff/new' || clean === '/staff-form') return 'staff_form';
+  if (clean === '/sales' || clean === '/entry' || clean === '/sales-entry') return 'entry';
+  if (clean === '/shifts' || clean === '/shift') return 'shifts';
+  if (clean === '/shifts/register' || clean === '/register-shift') return 'register_shift';
+  if (clean === '/history' || clean === '/sales-history') return 'sales_history';
+  if (clean === '/payroll') return 'payroll';
+  if (clean === '/costs' || clean === '/operating-costs') return 'costs';
+  if (clean === '/settings') return 'settings';
+  return 'dashboard';
+};
+
 export default function App() {
   const [user, setUser] = useState<User | null>(() => {
     try {
@@ -29,7 +59,46 @@ export default function App() {
       return null;
     }
   });
-  const [view, setView] = useState<'dashboard' | 'staff' | 'staff_form' | 'entry' | 'shifts' | 'register_shift' | 'settings' | 'sales_history' | 'payroll' | 'costs'>('dashboard');
+  const [view, setViewState] = useState<AppView>(() => {
+    return getViewFromPath(window.location.pathname);
+  });
+
+  const setView = (newView: AppView) => {
+    setViewState(newView);
+    const targetPath = VIEW_TO_PATH[newView] || '/dashboard';
+    if (window.location.pathname !== targetPath) {
+      window.history.pushState({ view: newView }, '', targetPath);
+    }
+  };
+
+  // Sync on browser back/forward buttons
+  useEffect(() => {
+    const handlePopState = () => {
+      const v = getViewFromPath(window.location.pathname);
+      setViewState(v);
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  // Sync initial URL if at root '/' or keep in sync
+  useEffect(() => {
+    if (user) {
+      const targetPath = VIEW_TO_PATH[view] || '/dashboard';
+      if (window.location.pathname === '/' || window.location.pathname === '') {
+        window.history.replaceState({ view }, '', targetPath);
+      }
+    }
+  }, [user]);
+
+  // Protect manager-only routes
+  useEffect(() => {
+    if (user && user.role !== 'manager') {
+      if (['staff', 'staff_form', 'payroll', 'costs'].includes(view)) {
+        setView('dashboard');
+      }
+    }
+  }, [user?.role, view]);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loginLoading, setLoginLoading] = useState(false);
@@ -313,6 +382,8 @@ export default function App() {
       if (res.success) {
         setUser(res.user);
         localStorage.setItem('tarot_user', JSON.stringify(res.user));
+        const targetPath = VIEW_TO_PATH[view] || '/dashboard';
+        window.history.replaceState({ view }, '', targetPath);
       } else {
         alert(res.message || 'Đăng nhập thất bại.');
       }
@@ -329,6 +400,7 @@ export default function App() {
     localStorage.removeItem('tarot_user');
     setLoading(false);
     setLoginLoading(false);
+    window.history.pushState({}, '', '/');
   };
 
   const onUpdateUser = (updatedUser: User) => {
