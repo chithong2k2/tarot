@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { User, SaleRecord, SystemSettings } from '../../types';
 import { firebaseService } from '../../services/firebaseService';
+import { getVNDateStr } from '../../utils/dateUtils';
 import { ConfirmModal } from '../ConfirmModal';
 
 export interface PackageOption {
@@ -168,7 +169,7 @@ export const SaleEntryView: React.FC<SaleEntryViewProps> = ({
         tip: 0,
         reader_id: defaultReader?.id || saleForm.reader_id,
         sale_id: '',
-        date: saleForm.date || '2026-09-26'
+        date: saleForm.date || getVNDateStr()
       });
     }
   }, [defaultReader?.id]);
@@ -203,7 +204,7 @@ export const SaleEntryView: React.FC<SaleEntryViewProps> = ({
       package_name: sale.package_name,
       reader_id: rId || saleForm.reader_id || defaultReader?.id,
       sale_id: sId || saleForm.sale_id || defaultSale?.id,
-      date: sale.date || saleForm.date || '2026-09-26'
+      date: sale.date || saleForm.date || getVNDateStr()
     });
 
     customerInputRef.current?.focus();
@@ -358,7 +359,7 @@ export const SaleEntryView: React.FC<SaleEntryViewProps> = ({
         // Prepend new order to session sales
         const newRecord: SaleRecord = {
           id: (res as any).id || Date.now().toString(),
-          date: saleForm.date || new Date().toISOString().slice(0, 10),
+          date: saleForm.date || getVNDateStr(),
           customer_name: savedCustomer,
           amount: savedAmount,
           tip: savedTip,
@@ -458,18 +459,11 @@ export const SaleEntryView: React.FC<SaleEntryViewProps> = ({
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Date Selector Pill */}
-          <div className="relative flex items-center gap-2 bg-white px-3.5 py-1.5 rounded-full border border-slate-200 shadow-2xs text-xs font-semibold text-slate-700">
-            <span className="text-slate-400">Ngày coi</span>
-            <span className="font-bold text-slate-900">{formatDisplayDate(saleForm.date || '2026-09-26')}</span>
+          {/* Date Display Pill (chỉnh ngày ở ô "Ngày nhập đơn" trong form) */}
+          <div className="flex items-center gap-2 bg-white px-3.5 py-1.5 rounded-full border border-slate-200 shadow-2xs text-xs font-semibold text-slate-700">
+            <span className="text-slate-400">Ngày nhập</span>
+            <span className="font-bold text-slate-900">{formatDisplayDate(saleForm.date || getVNDateStr())}</span>
             <Calendar size={13} className="text-slate-500 ml-0.5" />
-            <input 
-              type="date"
-              required
-              value={saleForm.date || '2026-09-26'}
-              onChange={e => setSaleForm({ ...saleForm, date: e.target.value })}
-              className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-            />
           </div>
 
           {/* Shift Badge Pill */}
@@ -527,6 +521,20 @@ export const SaleEntryView: React.FC<SaleEntryViewProps> = ({
             {/* Scrollable form body with scrollbar flush right along the card edge */}
             <div className="flex-1 min-h-0 overflow-y-auto space-y-3.5 -mr-4 sm:-mr-6 pr-4 sm:pr-5 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-200 hover:[&::-webkit-scrollbar-thumb]:bg-slate-300">
               
+              {/* Ngày nhập đơn */}
+              <div className="flex items-center gap-3 bg-[#f8fafc] border border-slate-200 rounded-2xl px-3.5 py-2.5">
+                <Calendar size={15} className="text-[#6d28d9] shrink-0" />
+                <label htmlFor="sale-date-input" className="text-xs font-bold text-slate-600 shrink-0">Ngày nhập đơn</label>
+                <input
+                  id="sale-date-input"
+                  type="date"
+                  required
+                  value={saleForm.date || getVNDateStr()}
+                  onChange={e => setSaleForm({ ...saleForm, date: e.target.value })}
+                  className="flex-1 min-w-0 px-3 py-1.5 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-[#7c3aed] bg-white text-sm font-semibold text-slate-800 cursor-pointer"
+                />
+              </div>
+
               {/* Box "Nhập nhanh" */}
               <div className="bg-[#faf8fe] border border-[#ede9fe] rounded-2xl p-3.5 space-y-2.5">
                 <div className="flex items-center justify-between">
