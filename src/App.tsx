@@ -112,7 +112,18 @@ export default function App() {
   const [payrollPeriods, setPayrollPeriods] = useState<PayrollPeriod[]>([]);
   const [readerSchedule, setReaderSchedule] = useState<ShiftRegistration[]>([]);
   const [saleSchedule, setSaleSchedule] = useState<ShiftRegistration[]>([]);
-  const [settings, setSettings] = useState<SystemSettings>({ id: 'global', is_locked: false });
+  const [settings, setSettings] = useState<SystemSettings>(() => {
+    try {
+      const savedSettings = localStorage.getItem('tarot_settings');
+      const savedPkgs = localStorage.getItem('tarot_packages');
+      const base: SystemSettings = savedSettings ? JSON.parse(savedSettings) : { id: 'global', is_locked: false };
+      if (!base.packages && savedPkgs) {
+        base.packages = JSON.parse(savedPkgs);
+      }
+      return base;
+    } catch {}
+    return { id: 'global', is_locked: false };
+  });
   const [error, setError] = useState<string | null>(null);
 
   const [selectedDay, setSelectedDay] = useState<string>(() => getVNDayName());
@@ -191,7 +202,18 @@ export default function App() {
     // 6. Settings listener
     const unsubSettings = onSnapshot(doc(db, 'settings', 'global'), (snapshot) => {
       if (snapshot.exists()) {
-        setSettings({ id: snapshot.id, ...snapshot.data() } as SystemSettings);
+        const sData = { id: snapshot.id, ...snapshot.data() } as SystemSettings;
+        setSettings(prev => {
+          const nextPackages = sData.packages || prev.packages;
+          const merged = { ...prev, ...sData, packages: nextPackages };
+          try {
+            localStorage.setItem('tarot_settings', JSON.stringify(merged));
+            if (nextPackages) {
+              localStorage.setItem('tarot_packages', JSON.stringify(nextPackages));
+            }
+          } catch {}
+          return merged;
+        });
       }
     });
     unsubscribers.push(unsubSettings);
@@ -410,6 +432,12 @@ export default function App() {
 
   const onUpdateSettings = (updatedSettings: SystemSettings) => {
     setSettings(updatedSettings);
+    try {
+      localStorage.setItem('tarot_settings', JSON.stringify(updatedSettings));
+      if (updatedSettings.packages) {
+        localStorage.setItem('tarot_packages', JSON.stringify(updatedSettings.packages));
+      }
+    } catch {}
   };
 
   const handleSyncToSheets = async () => {

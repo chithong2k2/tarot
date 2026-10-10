@@ -62,9 +62,18 @@ export const firebaseService = {
           shifts: shiftsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Shift)),
           readerShifts: readerShiftsSnap.docs.map(d => ({ id: d.id, ...d.data() } as ShiftRegistration)),
           saleShifts: saleShiftsSnap.docs.map(d => ({ id: d.id, ...d.data() } as ShiftRegistration)),
-          costs: costsSnap.docs.map(d => ({ id: d.id, ...d.data() } as OperatingCost)),
-          settings: settingsSnap.exists() ? { id: settingsSnap.id, ...settingsSnap.data() } : { id: 'global', is_locked: false },
-          adHistory: adHistorySnap.docs.map(d => ({ id: d.id, ...d.data() } as AdHistoryRecord))
+          settings: (() => {
+            const base = settingsSnap.exists() ? { id: settingsSnap.id, ...settingsSnap.data() } as SystemSettings : { id: 'global', is_locked: false } as SystemSettings;
+            try {
+              if (!base.packages) {
+                const localPkgs = localStorage.getItem('tarot_packages');
+                if (localPkgs) {
+                  base.packages = JSON.parse(localPkgs);
+                }
+              }
+            } catch {}
+            return base;
+          })(),
         }
       };
     } catch (error) {
@@ -270,7 +279,19 @@ export const firebaseService = {
 
   // --- System Settings ---
   updateSettings: async (settings: Partial<SystemSettings>): Promise<FirebaseResponse> => {
-    await setDoc(doc(db, 'settings', 'global'), settings, { merge: true });
+    try {
+      const current = localStorage.getItem('tarot_settings');
+      const merged = current ? { ...JSON.parse(current), ...settings } : { id: 'global', ...settings };
+      localStorage.setItem('tarot_settings', JSON.stringify(merged));
+      if (settings.packages) {
+        localStorage.setItem('tarot_packages', JSON.stringify(settings.packages));
+      }
+    } catch (e) {
+      console.warn('[FirebaseService] LocalStorage settings save warning:', e);
+    }
+    if (db && isFirebaseReady()) {
+      await setDoc(doc(db, 'settings', 'global'), settings, { merge: true });
+    }
     return { success: true };
   },
 

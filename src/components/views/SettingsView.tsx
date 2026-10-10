@@ -64,11 +64,24 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'admin' | 'packages' | 'notifications'>('profile');
 
   // Packages Management States
-  const [packagesList, setPackagesList] = useState<PackageOption[]>(
-    systemSettings?.packages && systemSettings.packages.length > 0 
-      ? systemSettings.packages 
-      : PACKAGE_TILES
-  );
+  const [packagesList, setPackagesList] = useState<PackageOption[]>(() => {
+    if (systemSettings?.packages && systemSettings.packages.length > 0) {
+      return systemSettings.packages;
+    }
+    try {
+      const localPkgs = localStorage.getItem('tarot_packages');
+      if (localPkgs) {
+        const parsed = JSON.parse(localPkgs);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+      const localSettings = localStorage.getItem('tarot_settings');
+      if (localSettings) {
+        const parsed = JSON.parse(localSettings);
+        if (Array.isArray(parsed.packages) && parsed.packages.length > 0) return parsed.packages;
+      }
+    } catch {}
+    return PACKAGE_TILES;
+  });
   const [packageSaveLoading, setPackageSaveLoading] = useState(false);
   const [packageSuccessMsg, setPackageSuccessMsg] = useState<string | null>(null);
   const [showPackageModal, setShowPackageModal] = useState(false);
@@ -101,6 +114,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   useEffect(() => {
     if (systemSettings?.packages && systemSettings.packages.length > 0) {
       setPackagesList(systemSettings.packages);
+    } else {
+      try {
+        const localPkgs = localStorage.getItem('tarot_packages');
+        if (localPkgs) {
+          const parsed = JSON.parse(localPkgs);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setPackagesList(parsed);
+          }
+        }
+      } catch {}
     }
   }, [systemSettings?.packages]);
 
@@ -449,6 +472,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     setPackageSaveLoading(true);
     setPackageSuccessMsg(null);
     try {
+      // Optimistically persist to localStorage immediately
+      try {
+        localStorage.setItem('tarot_packages', JSON.stringify(newPackages));
+      } catch (err) {
+        console.warn('Could not save packages to localStorage', err);
+      }
+
+      setPackagesList(newPackages);
+
       const updated: Partial<SystemSettings> = {
         packages: newPackages
       };
@@ -459,7 +491,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           packages: newPackages
         });
       }
-      setPackagesList(newPackages);
       setPackageSuccessMsg('Đã lưu bảng giá gói dịch vụ thành công!');
       setTimeout(() => setPackageSuccessMsg(null), 3000);
     } catch (err: any) {
@@ -533,7 +564,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   };
 
   const handleTogglePopular = (pkgId: string) => {
-    const updatedList = packagesList.map(p => p.id === pkgId ? { ...p, popular: !p.popular } : p);
+    const updatedList = packagesList.map(p => (p.id === pkgId || p.name === pkgId) ? { ...p, popular: !p.popular } : p);
     handleSavePackages(updatedList);
   };
 

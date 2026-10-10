@@ -99,6 +99,13 @@ export const SaleEntryView: React.FC<SaleEntryViewProps> = ({
     if (systemSettings?.packages && Array.isArray(systemSettings.packages) && systemSettings.packages.length > 0) {
       return systemSettings.packages;
     }
+    try {
+      const localPkgs = localStorage.getItem('tarot_packages');
+      if (localPkgs) {
+        const parsed = JSON.parse(localPkgs);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
     return PACKAGE_TILES;
   }, [systemSettings?.packages]);
 

@@ -53,7 +53,7 @@ import { firebaseService } from '../../services/firebaseService';
 import { apiService } from '../../services/api';
 import { StatCard, formatVND } from '../DashboardComponents';
 import { exportToExcel } from '../../utils/export';
-import { calculateDashboardSummary } from '../../utils/dashboard';
+import { calculateDashboardSummary, INITIAL_SUMMARY } from '../../utils/dashboard';
 import { getVNDayName, getVNMonday, getVNTime } from '../../utils/dateUtils';
 
 import { ConfirmModal } from '../ConfirmModal';
@@ -67,6 +67,7 @@ export interface AvailableWeek {
   startStr: string;
   endStr: string;
   isCurrent: boolean;
+  payrollPeriod?: PayrollPeriod;
 }
 
 interface DashboardViewProps {
@@ -290,7 +291,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               endDate: eDate,
               startStr: p.start_date,
               endStr: p.end_date,
-              isCurrent: false
+              isCurrent: false,
+              payrollPeriod: p
             });
           }
         }
@@ -334,6 +336,56 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   }, [costs, activeWeek]);
 
   const activeWeekSummary = React.useMemo(() => {
+    // 1. If viewing an archived week that was saved in payrollPeriods
+    if (!activeWeek.isCurrent && activeWeek.payrollPeriod) {
+      const p = activeWeek.payrollPeriod;
+      // If the archived week was recorded with zero transactions and zero revenue
+      if (weekSales.length === 0 && (!p.total_revenue || p.total_revenue === 0) && (!p.total_ad_spend || p.total_ad_spend === 0)) {
+        return {
+          ...INITIAL_SUMMARY,
+          totalRevenue: 0,
+          totalAmount: 0,
+          totalTip: 0,
+          totalReaderCommission: 0,
+          totalSaleCommission: 0,
+          totalExpenses: 0,
+          totalOperatingCosts: 0,
+          totalAdSpend: 0,
+          netProfit: 0,
+          dailyStats: ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ nhật'].map(day => ({
+            name: day,
+            revenue: 0,
+            profit: 0,
+            adSpend: 0,
+            commission: 0
+          }))
+        };
+      }
+
+      // If the archived period has recorded numbers, align with the archived period's official totals
+      if (p.total_revenue > 0 || (p.total_ad_spend && p.total_ad_spend > 0)) {
+        const base = calculateDashboardSummary(
+          weekSales,
+          users,
+          weekCosts,
+          weekAdHistory,
+          activeWeek.startDate,
+          activeWeek.endDate
+        );
+        const archivedAdSpend = Number(p.total_ad_spend) || 0;
+        const archivedRev = Number(p.total_revenue) || 0;
+        const archivedProfit = Number(p.owner_net_profit) !== undefined ? Number(p.owner_net_profit) : (archivedRev - archivedAdSpend - Number(p.total_payout || 0));
+        return {
+          ...base,
+          totalRevenue: archivedRev,
+          totalAdSpend: archivedAdSpend,
+          netProfit: archivedProfit,
+          totalExpenses: archivedRev - archivedProfit
+        };
+      }
+    }
+
+    // 2. Default dynamic calculation
     return calculateDashboardSummary(
       weekSales,
       users,
@@ -788,7 +840,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 variant: currentDayStats.netMargin >= 0 ? 'positive' : 'negative'
               }}
               subtitle={
-                <span>Đã trừ hoa hồng NV & chi phí Ads</span>
+                <span>
+                  {currentDayStats.salesCount === 0 && currentDayStats.adSpend > 0
+                    ? 'Lợi nhuận âm do phát sinh chi phí Ads độc lập khi chưa có đơn hàng'
+                    : 'Đã trừ hoa hồng NV & chi phí Ads'}
+                </span>
               }
             />
             <StatCard 
@@ -803,20 +859,28 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 variant: currentDayStats.adSpend > 0 ? 'info' : 'neutral'
               }}
               subtitle={
-                <span>Realtime Meta Graph API</span>
+                <span>
+                  {currentDayStats.salesCount === 0 && currentDayStats.adSpend > 0
+                    ? 'Chi phí Ads ghi nhận độc lập từ Meta API (không có đơn hàng)'
+                    : 'Realtime Meta Graph API'}
+                </span>
               }
             />
             <StatCard 
-              title="Hiệu Quả Quảng Cáo" 
-              value={currentDayStats.roas !== null ? `${currentDayStats.roas.toFixed(2)}x ROAS` : (currentDayStats.adSpend > 0 ? '0.00x ROAS' : 'Chưa chạy Ads')} 
+              title="Hiệu Quả Quảng Cáo (ROAS)" 
+              value={currentDayStats.roas !== null ? `${currentDayStats.roas.toFixed(2)}x ROAS` : '0.00x ROAS'} 
               icon={<Target size={24} />} 
               color="bg-purple-600"
-              badge={roasBadge}
+              badge={currentDayStats.adSpend > 0 ? roasBadge : { text: 'Chưa chạy Ads', variant: 'neutral' }}
               subtitle={
                 currentDayStats.cpa !== null ? (
                   <span>CPA: <strong className="text-slate-700 font-semibold">{formatVND(Math.round(currentDayStats.cpa))}</strong> / đơn</span>
                 ) : (
-                  <span>{currentDayStats.adSpend > 0 ? 'Chưa phát sinh đơn' : 'Không có chi phí Ads'}</span>
+                  <span>
+                    {currentDayStats.adSpend > 0 
+                      ? 'Chưa phát sinh đơn hàng (ROAS: 0.00x)' 
+                      : 'Chưa chạy Ads tuần này (ROAS: 0.00x)'}
+                  </span>
                 )
               }
             />
@@ -1514,6 +1578,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                                 ? `Không tìm thấy giao dịch nào phù hợp với từ khóa "${searchQuery}"`
                                 : `Không có giao dịch nào ${selectedDay === 'All' ? `trong ${activeWeek.label.toLowerCase()}` : `trong ngày ${selectedDay}`}`}
                             </p>
+                            {!searchQuery && currentDayStats.adSpend > 0 && currentDayStats.salesCount === 0 && (
+                              <p className="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-200/80 px-3 py-1.5 rounded-lg max-w-lg font-medium">
+                                Chi phí Ads ({formatVND(currentDayStats.adSpend)}) được ghi nhận độc lập từ tài khoản quảng cáo Meta Facebook (không có giao dịch phát sinh trong kỳ).
+                              </p>
+                            )}
                             {searchQuery && (
                               <button
                                 onClick={() => setSearchQuery('')}

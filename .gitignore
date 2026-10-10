@@ -6,5 +6,6 @@ coverage/
 *.log
 *.traineddata
 scratch/
+graphify-out/
 .env*
 !.env.example
