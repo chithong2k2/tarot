@@ -20,6 +20,21 @@ import { getVNMonday, getVNTime } from '../utils/dateUtils';
 // Helper to check if Firebase is configured
 const isFirebaseReady = () => !!db;
 
+export const hashPassword = async (raw: string): Promise<string> => {
+  const trimmed = raw.trim();
+  if (/^[a-f0-9]{64}$/i.test(trimmed)) return trimmed.toLowerCase();
+  const encoded = new TextEncoder().encode(trimmed);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', encoded);
+  return Array.from(new Uint8Array(hashBuffer))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+};
+
+export const stripUserPassword = (u: any): User => {
+  const { password, ...safeUser } = u || {};
+  return safeUser as User;
+};
+
 export interface FirebaseResponse {
   success: boolean;
   message?: string;
@@ -57,7 +72,7 @@ export const firebaseService = {
       return {
         status: 'ok',
         data: {
-          users: usersSnap.docs.map(d => ({ id: d.id, ...d.data() } as User)),
+          users: usersSnap.docs.map(d => stripUserPassword({ id: d.id, ...d.data() })),
           sales: salesSnap.docs.map(d => ({ id: d.id, ...d.data() } as SaleRecord)),
           shifts: shiftsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Shift)),
           readerShifts: readerShiftsSnap.docs.map(d => ({ id: d.id, ...d.data() } as ShiftRegistration)),
@@ -98,19 +113,36 @@ export const firebaseService = {
         return { success: false, message: 'Database trống. Vui lòng nhấn "Khởi tạo hệ thống" ở phía dưới trước.' };
       }
 
+      const cleanUsername = username.trim();
+      const rawPassword = password.trim();
+      const hashedInput = await hashPassword(rawPassword);
+
       const q = query(
         collection(db, 'users'), 
-        where('username', '==', username.trim()), 
-        where('password', '==', password.trim())
+        where('username', '==', cleanUsername)
       );
       
       const snap = await getDocs(q);
       console.log("[FirebaseService] Login query result empty:", snap.empty);
       
-      if (!snap.empty) {
-        const userData = snap.docs[0].data() as User;
-        console.log("[FirebaseService] Login success for:", userData.full_name);
-        return { success: true, user: { id: snap.docs[0].id, ...userData } };
+      for (const userDoc of snap.docs) {
+        const userData = userDoc.data() as User;
+        const storedPass = String(userData.password || '').trim();
+
+        if (storedPass === hashedInput) {
+          console.log("[FirebaseService] Login success (hashed) for:", userData.full_name);
+          return { success: true, user: stripUserPassword({ id: userDoc.id, ...userData }) };
+        }
+
+        if (storedPass && storedPass === rawPassword) {
+          console.log("[FirebaseService] Migrating legacy plaintext password to SHA-256 for:", userData.full_name);
+          try {
+            await updateDoc(doc(db, 'users', userDoc.id), { password: hashedInput });
+          } catch (migrateErr) {
+            console.warn("[FirebaseService] Auto-migrate password warning:", migrateErr);
+          }
+          return { success: true, user: stripUserPassword({ id: userDoc.id, ...userData }) };
+        }
       }
       
       return { success: false, message: 'Sai tài khoản hoặc mật khẩu (Lưu ý: Phân biệt chữ hoa/thường)' };
@@ -123,19 +155,28 @@ export const firebaseService = {
   // --- User Management ---
   getUsers: async () => {
     const snap = await getDocs(collection(db, 'users'));
-    return snap.docs.map(d => ({ id: d.id, ...d.data() } as User));
+    return snap.docs.map(d => stripUserPassword({ id: d.id, ...d.data() }));
   },
 
   addUser: async (userData: Partial<User>): Promise<FirebaseResponse> => {
-    const docRef = await addDoc(collection(db, 'users'), {
+    const payload: Partial<User> & { created_at: string } = {
       ...userData,
       created_at: new Date().toISOString()
-    });
+    };
+    if (payload.password && payload.password.trim()) {
+      payload.password = await hashPassword(payload.password);
+    }
+    const docRef = await addDoc(collection(db, 'users'), payload);
     return { success: true, id: docRef.id };
   },
 
   updateUser: async (userData: User): Promise<FirebaseResponse> => {
     const { id, ...data } = userData;
+    if (data.password && data.password.trim()) {
+      data.password = await hashPassword(data.password);
+    } else {
+      delete data.password;
+    }
     await updateDoc(doc(db, 'users', id), data);
     return { success: true };
   },
@@ -143,7 +184,13 @@ export const firebaseService = {
   updateUserProfile: async (userId: string, data: Partial<User>): Promise<FirebaseResponse> => {
     try {
       if (!userId) throw new Error("User ID is required");
-      await updateDoc(doc(db, 'users', userId), data);
+      const payload = { ...data };
+      if (payload.password && payload.password.trim()) {
+        payload.password = await hashPassword(payload.password);
+      } else {
+        delete payload.password;
+      }
+      await updateDoc(doc(db, 'users', userId), payload);
       return { success: true };
     } catch (error) {
       console.error("[FirebaseService] updateUserProfile error:", error);
@@ -327,11 +374,14 @@ export const firebaseService = {
       const settingsRef = doc(db, 'settings', 'global');
       batch.set(settingsRef, { is_locked: false });
 
+      const defaultAdminHash = await hashPassword('admin');
+      const defaultStaffHash = await hashPassword('123');
+
       // Default Admin
       const adminRef = doc(db, 'users', 'admin_default');
       batch.set(adminRef, {
         username: 'admin',
-        password: 'admin',
+        password: defaultAdminHash,
         role: 'manager',
         full_name: 'Administrator',
         commission_percent: 0,
@@ -344,7 +394,7 @@ export const firebaseService = {
       const saleRef = doc(db, 'users', 'sale_default');
       batch.set(saleRef, {
         username: 'sale',
-        password: '123',
+        password: defaultStaffHash,
         role: 'sale',
         full_name: 'Nhân Viên Sale',
         commission_percent: 10,
@@ -357,7 +407,7 @@ export const firebaseService = {
       const readerRef = doc(db, 'users', 'reader_default');
       batch.set(readerRef, {
         username: 'reader',
-        password: '123',
+        password: defaultStaffHash,
         role: 'reader',
         full_name: 'Nhân Viên Reader',
         commission_percent: 30,
@@ -415,10 +465,10 @@ export const firebaseService = {
 
       // Add the extra users to match the names used in mock sales
       const extraUsers = [
-        { id: 'reader_a', username: 'readera', password: '123', role: 'reader', full_name: 'Reader A', commission_percent: 30 },
-        { id: 'reader_b', username: 'readerb', password: '123', role: 'reader', full_name: 'Reader B', commission_percent: 30 },
-        { id: 'sale_x', username: 'salex', password: '123', role: 'sale', full_name: 'Sale X', commission_percent: 10 },
-        { id: 'sale_y', username: 'saley', password: '123', role: 'sale', full_name: 'Sale Y', commission_percent: 10 },
+        { id: 'reader_a', username: 'readera', password: defaultStaffHash, role: 'reader', full_name: 'Reader A', commission_percent: 30 },
+        { id: 'reader_b', username: 'readerb', password: defaultStaffHash, role: 'reader', full_name: 'Reader B', commission_percent: 30 },
+        { id: 'sale_x', username: 'salex', password: defaultStaffHash, role: 'sale', full_name: 'Sale X', commission_percent: 10 },
+        { id: 'sale_y', username: 'saley', password: defaultStaffHash, role: 'sale', full_name: 'Sale Y', commission_percent: 10 },
       ];
 
       extraUsers.forEach(u => {

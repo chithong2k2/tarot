@@ -395,12 +395,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     setPassLoading(true);
     setPassMessage(null);
 
-    if (user.password && passwordData.current !== user.password) {
-      setPassMessage({ type: 'error', text: 'Mật khẩu hiện tại không chính xác!' });
-      setPassLoading(false);
-      return;
-    }
-
     if (passwordData.new !== passwordData.confirm) {
       setPassMessage({ type: 'error', text: 'Mật khẩu mới và xác nhận mật khẩu không khớp' });
       setPassLoading(false);
@@ -414,9 +408,17 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     }
 
     try {
+      const verifyRes = await firebaseService.login(user.username, passwordData.current);
+      if (!verifyRes.success) {
+        setPassMessage({ type: 'error', text: 'Mật khẩu hiện tại không chính xác!' });
+        setPassLoading(false);
+        return;
+      }
+
       const res = await firebaseService.updateUserProfile(user.id, { password: passwordData.new });
       if (res.success) {
-        onUpdateUser({ ...user, password: passwordData.new });
+        const { password, ...safeUser } = user;
+        onUpdateUser(safeUser as User);
         setPassMessage({ type: 'success', text: 'Đổi mật khẩu thành công!' });
         setTimeout(() => {
           setShowPasswordModal(false);

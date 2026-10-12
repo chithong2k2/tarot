@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AnimatePresence } from 'motion/react';
 import { User, SaleRecord, DashboardSummary, Shift, ShiftRegistration, OperatingCost, SystemSettings, AdHistoryRecord } from './types';
-import { firebaseService } from './services/firebaseService';
+import { firebaseService, stripUserPassword } from './services/firebaseService';
 import { onSnapshot, collection, query, orderBy, doc } from 'firebase/firestore';
 import { db } from './lib/firebase';
 import { Sidebar } from './components/Sidebar';
@@ -54,7 +54,7 @@ export default function App() {
   const [user, setUser] = useState<User | null>(() => {
     try {
       const savedUser = localStorage.getItem('tarot_user');
-      return savedUser ? JSON.parse(savedUser) : null;
+      return savedUser ? stripUserPassword(JSON.parse(savedUser)) : null;
     } catch {
       return null;
     }
@@ -159,7 +159,7 @@ export default function App() {
 
     // 1. Users listener
     const unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
-      const updatedUsers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as User));
+      const updatedUsers = snapshot.docs.map(doc => stripUserPassword({ id: doc.id, ...doc.data() }));
       setUsers(updatedUsers);
       
       // Sync current user
