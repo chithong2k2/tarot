@@ -14,12 +14,12 @@ dotenv.config();
 
 // Firebase configuration for server-side use
 const firebaseConfig = {
-  apiKey: process.env.VITE_FIREBASE_API_KEY || "AIzaSyA9avmK4ed3JDBzRCVh0-602BoLVU8Cgn8",
-  authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN || "tarot-5719b.firebaseapp.com",
-  projectId: process.env.VITE_FIREBASE_PROJECT_ID || "tarot-5719b",
-  storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET || "tarot-5719b.firebasestorage.app",
-  messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "30679561256",
-  appId: process.env.VITE_FIREBASE_APP_ID || "1:30679561256:web:392561ac7f849bbe2f311d",
+  apiKey: process.env.VITE_FIREBASE_API_KEY || "",
+  authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN || "",
+  projectId: process.env.VITE_FIREBASE_PROJECT_ID || "",
+  storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET || "",
+  messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "",
+  appId: process.env.VITE_FIREBASE_APP_ID || "",
 };
 
 const firebaseApp = initializeApp(firebaseConfig);
@@ -443,7 +443,7 @@ async function startServer() {
     // 1. Try Google Gemini Vision if API key is configured
     if (geminiKey) {
       try {
-        console.log(`[AI Menu] Analyzing price menu with Google Gemini Vision (key: ${geminiKey.slice(0, 4)}...${geminiKey.slice(-4)})...`);
+        console.log("[AI Menu] Analyzing price menu with Google Gemini Vision...");
         const ai = new GoogleGenAI({ apiKey: geminiKey });
         
         // Try candidate models in order of best vision performance, stability & availability

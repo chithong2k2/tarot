@@ -1,13 +1,16 @@
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, getDocs, doc, deleteDoc, updateDoc, writeBatch } from 'firebase/firestore';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 const firebaseConfig = {
-  apiKey: "AIzaSyA9avmK4ed3JDBzRCVh0-602BoLVU8Cgn8",
-  authDomain: "tarot-5719b.firebaseapp.com",
-  projectId: "tarot-5719b",
-  storageBucket: "tarot-5719b.firebasestorage.app",
-  messagingSenderId: "30679561256",
-  appId: "1:30679561256:web:392561ac7f849bbe2f311d"
+  apiKey: process.env.VITE_FIREBASE_API_KEY || "",
+  authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN || "",
+  projectId: process.env.VITE_FIREBASE_PROJECT_ID || "",
+  storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET || "",
+  messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "",
+  appId: process.env.VITE_FIREBASE_APP_ID || ""
 };
 
 const app = initializeApp(firebaseConfig);
