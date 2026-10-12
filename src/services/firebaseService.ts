@@ -645,24 +645,17 @@ export const firebaseService = {
   ): Promise<boolean> => {
     try {
       const currentMonday = getVNMonday();
-      currentMonday.setHours(0, 0, 0, 0);
+      currentMonday.setHours(12, 0, 0, 0);
 
-      // Previous week Monday (00:00:00) and Sunday (23:59:59)
+      // Previous week Monday and Sunday
       const prevMonday = new Date(currentMonday);
       prevMonday.setDate(currentMonday.getDate() - 7);
-      prevMonday.setHours(0, 0, 0, 0);
 
       const prevSunday = new Date(prevMonday);
       prevSunday.setDate(prevMonday.getDate() + 6);
-      prevSunday.setHours(23, 59, 59, 999);
 
       const formatYMD = (d: Date) => {
-        return new Intl.DateTimeFormat('sv-SE', {
-          timeZone: 'Asia/Ho_Chi_Minh',
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit'
-        }).format(d);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
       };
 
       const formatDM = (d: Date) => {

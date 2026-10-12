@@ -128,14 +128,15 @@ export const apiService = {
   },
 
   testMetaAds: async (token?: string, accountId?: string) => {
-    // 1. Try backend server if running
+    // 1. Try backend server if running and returns JSON
     try {
       const response = await fetch('/api/test-fb-ads', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ accessToken: token, adAccountId: accountId })
       });
-      if (response.ok) {
+      const contentType = response.headers.get('content-type') || '';
+      if (response.ok && contentType.includes('application/json')) {
         return await response.json();
       }
     } catch {
@@ -145,21 +146,23 @@ export const apiService = {
     return await directTestMetaAds(token, accountId);
   },
 
-  syncMetaAds: async () => {
-    // 1. Try backend server if running
+  syncMetaAds: async (token?: string, accountId?: string) => {
+    // 1. Try backend server if running and returns JSON
     try {
       const response = await fetch('/api/sync-fb-ads', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accessToken: token, adAccountId: accountId })
       });
-      if (response.ok) {
+      const contentType = response.headers.get('content-type') || '';
+      if (response.ok && contentType.includes('application/json')) {
         return await response.json();
       }
     } catch {
       // Backend not reached, fall back to direct browser call
     }
     // 2. Direct browser fallback
-    return await directSyncMetaAds();
+    return await directSyncMetaAds(token, accountId);
   },
 
   analyzePriceMenu: async (imageBase64: string, mimeType?: string, geminiApiKey?: string) => {
@@ -199,6 +202,17 @@ async function getClientMetaCredentials(token?: string, accountId?: string) {
     }
   }
 
+  if (!accessToken || !adAccountId) {
+    try {
+      const localSettings = localStorage.getItem('tarot_settings');
+      if (localSettings) {
+        const parsed = JSON.parse(localSettings);
+        if (!accessToken && parsed.fb_access_token) accessToken = String(parsed.fb_access_token).trim();
+        if (!adAccountId && parsed.fb_ad_account_id) adAccountId = String(parsed.fb_ad_account_id).trim();
+      }
+    } catch {}
+  }
+
   if (!accessToken && (import.meta as any).env?.VITE_FB_ACCESS_TOKEN) {
     accessToken = (import.meta as any).env.VITE_FB_ACCESS_TOKEN;
   }
@@ -221,7 +235,16 @@ async function directSyncMetaAds(customToken?: string, customAccountId?: string)
 
   try {
     const formattedId = adAccountId.startsWith('act_') ? adAccountId : `act_${adAccountId}`;
-    const fbUrl = `https://graph.facebook.com/v19.0/${formattedId}/insights?fields=spend&date_preset=this_week_mon_today&time_increment=1&access_token=${encodeURIComponent(accessToken)}`;
+    const fmt = new Intl.DateTimeFormat('sv-SE', {
+      timeZone: 'Asia/Ho_Chi_Minh',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    });
+    const now = new Date();
+    const past = new Date(now.getTime() - 14 * 86400000);
+    const timeRange = JSON.stringify({ since: fmt.format(past), until: fmt.format(now) });
+    const fbUrl = `https://graph.facebook.com/v19.0/${formattedId}/insights?fields=spend&time_range=${encodeURIComponent(timeRange)}&time_increment=1&limit=30&access_token=${encodeURIComponent(accessToken)}`;
 
     const res = await fetch(fbUrl);
     const data = await res.json();
@@ -237,7 +260,7 @@ async function directSyncMetaAds(customToken?: string, customAccountId?: string)
     if (db) {
       for (const item of insights) {
         const dateStr = item.date_start;
-        const spend = parseFloat(item.spend) || 0;
+        const spend = Math.round(parseFloat(item.spend) || 0);
 
         await setDoc(doc(db, 'ad_history', dateStr), {
           date: dateStr,
@@ -251,7 +274,7 @@ async function directSyncMetaAds(customToken?: string, customAccountId?: string)
 
     return {
       success: true,
-      message: `Đã đồng bộ chi phí Ads cho ${updatedDays.length} ngày thành công!`,
+      message: `Đã đồng bộ chi phí Ads cho ${updatedDays.length} ngày gần nhất thành công!`,
       days: updatedDays
     };
   } catch (err: any) {
@@ -274,9 +297,9 @@ async function directTestMetaAds(token?: string, accountId?: string) {
 
   try {
     const formattedId = adAccountId.startsWith('act_') ? adAccountId : `act_${adAccountId}`;
-    const fbUrl = `https://graph.facebook.com/v19.0/${formattedId}/insights?fields=spend&date_preset=today&access_token=${encodeURIComponent(accessToken)}`;
+    const accountUrl = `https://graph.facebook.com/v19.0/${formattedId}?fields=name,account_status,currency,amount_spent,timezone_name&access_token=${encodeURIComponent(accessToken)}`;
 
-    const res = await fetch(fbUrl);
+    const res = await fetch(accountUrl);
     const data = await res.json();
 
     if (!res.ok || data.error) {
@@ -284,12 +307,28 @@ async function directTestMetaAds(token?: string, accountId?: string) {
       return { success: false, message: `Lỗi Meta: ${fbMsg}` };
     }
 
-    const insights = data.data;
-    const spend = insights && insights.length > 0 ? parseFloat(insights[0].spend) : 0;
+    const statusMap: Record<number, string> = {
+      1: "Hoạt động bình thường (ACTIVE)",
+      2: "Bị vô hiệu hóa (DISABLED)",
+      3: "Chưa thanh toán (UNSETTLED)",
+      7: "Đang chờ xem xét (PENDING_REVIEW)",
+      9: "Đang gia hạn (IN_GRACE_PERIOD)",
+      100: "Đang chờ thanh toán đóng (PENDING_CLOSURE)",
+      101: "Đã đóng (CLOSED)"
+    };
+    const statusText = statusMap[data.account_status] || `Trạng thái: ${data.account_status}`;
+
     return {
       success: true,
-      message: `Kết nối thành công! Chi phí Ads hôm nay: ${new Intl.NumberFormat('vi-VN').format(spend)}đ`,
-      spend
+      account: {
+        id: data.id || formattedId,
+        name: data.name || formattedId,
+        currency: data.currency || 'VND',
+        status: statusText,
+        amount_spent: data.amount_spent || '0',
+        timezone: data.timezone_name || 'Asia/Ho_Chi_Minh'
+      },
+      message: `Kết nối thành công tới tài khoản "${data.name || formattedId}" (${data.currency || 'VND'}) - ${statusText}`
     };
   } catch (err: any) {
     return {

@@ -685,7 +685,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     setFbSyncLoading(true);
     setMessage(null);
     try {
-      const res = await apiService.syncMetaAds();
+      const res = await apiService.syncMetaAds(fbAccessToken.trim(), fbAdAccountId.trim());
       if (res.success) {
         setMessage({ type: 'success', text: res.message || 'Đồng bộ chi phí Meta Ads thành công!' });
       } else {

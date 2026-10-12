@@ -2,12 +2,12 @@ import { initializeApp, getApps, getApp } from "firebase/app";
 import { getFirestore, doc, setDoc, getDoc, getDocs, collection, writeBatch } from "firebase/firestore";
 
 const firebaseConfig = {
-  apiKey: process.env.VITE_FIREBASE_API_KEY || "",
-  authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN || "",
-  projectId: process.env.VITE_FIREBASE_PROJECT_ID || "",
-  storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET || "",
-  messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "",
-  appId: process.env.VITE_FIREBASE_APP_ID || "",
+  apiKey: process.env.VITE_FIREBASE_API_KEY || "AIzaSyA9avmK4ed3JDBzRCVh0-602BoLVU8Cgn8",
+  authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN || "tarot-5719b.firebaseapp.com",
+  projectId: process.env.VITE_FIREBASE_PROJECT_ID || "tarot-5719b",
+  storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET || "tarot-5719b.firebasestorage.app",
+  messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "30679561256",
+  appId: process.env.VITE_FIREBASE_APP_ID || "1:30679561256:web:392561ac7f849bbe2f311d",
 };
 
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
@@ -29,23 +29,16 @@ export default async function handler(req: any, res: any) {
     const diff = nowVN.getDate() - day + (day === 0 ? -6 : 1);
     const currentMon = new Date(nowVN);
     currentMon.setDate(diff);
-    currentMon.setHours(0, 0, 0, 0);
+    currentMon.setHours(12, 0, 0, 0);
 
     const prevMon = new Date(currentMon);
     prevMon.setDate(currentMon.getDate() - 7);
-    prevMon.setHours(0, 0, 0, 0);
 
     const prevSun = new Date(prevMon);
     prevSun.setDate(prevMon.getDate() + 6);
-    prevSun.setHours(23, 59, 59, 999);
 
     const formatYMD = (d: Date) => {
-      return new Intl.DateTimeFormat('sv-SE', {
-        timeZone: 'Asia/Ho_Chi_Minh',
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit'
-      }).format(d);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     };
 
     const formatDM = (d: Date) => {

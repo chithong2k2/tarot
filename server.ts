@@ -14,12 +14,12 @@ dotenv.config();
 
 // Firebase configuration for server-side use
 const firebaseConfig = {
-  apiKey: process.env.VITE_FIREBASE_API_KEY || "",
-  authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN || "",
-  projectId: process.env.VITE_FIREBASE_PROJECT_ID || "",
-  storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET || "",
-  messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "",
-  appId: process.env.VITE_FIREBASE_APP_ID || "",
+  apiKey: process.env.VITE_FIREBASE_API_KEY || "AIzaSyA9avmK4ed3JDBzRCVh0-602BoLVU8Cgn8",
+  authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN || "tarot-5719b.firebaseapp.com",
+  projectId: process.env.VITE_FIREBASE_PROJECT_ID || "tarot-5719b",
+  storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET || "tarot-5719b.firebasestorage.app",
+  messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "30679561256",
+  appId: process.env.VITE_FIREBASE_APP_ID || "1:30679561256:web:392561ac7f849bbe2f311d",
 };
 
 const firebaseApp = initializeApp(firebaseConfig);
@@ -61,6 +61,18 @@ async function getGeminiApiKey(customKey?: string): Promise<string> {
   return process.env.GEMINI_API_KEY || '';
 }
 
+function getVNDateRange(daysBack = 14) {
+  const fmt = new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
+  const now = new Date();
+  const past = new Date(now.getTime() - daysBack * 86400000);
+  return { since: fmt.format(past), until: fmt.format(now) };
+}
+
 async function fetchAndSaveAdSpend() {
   const { accessToken, adAccountId } = await getMetaCredentials();
 
@@ -71,13 +83,15 @@ async function fetchAndSaveAdSpend() {
 
   try {
     const formattedId = adAccountId.startsWith("act_") ? adAccountId : `act_${adAccountId}`;
+    const timeRange = JSON.stringify(getVNDateRange(14));
     const response = await axios.get(
       `https://graph.facebook.com/v19.0/${formattedId}/insights`,
       {
         params: {
           fields: "spend",
-          date_preset: "this_week_mon_today",
+          time_range: timeRange,
           time_increment: 1,
+          limit: 30,
           access_token: accessToken,
         },
       }
@@ -86,7 +100,7 @@ async function fetchAndSaveAdSpend() {
     const insights = response.data.data || [];
     for (const item of insights) {
       const dateStr = item.date_start;
-      const spend = parseFloat(item.spend) || 0;
+      const spend = Math.round(parseFloat(item.spend) || 0);
 
       await setDoc(doc(db, 'ad_history', dateStr), {
         date: dateStr,
@@ -124,23 +138,16 @@ async function autoArchivePreviousWeekOnServer() {
     const diff = nowVN.getDate() - day + (day === 0 ? -6 : 1);
     const currentMon = new Date(nowVN);
     currentMon.setDate(diff);
-    currentMon.setHours(0, 0, 0, 0);
+    currentMon.setHours(12, 0, 0, 0);
 
     const prevMon = new Date(currentMon);
     prevMon.setDate(currentMon.getDate() - 7);
-    prevMon.setHours(0, 0, 0, 0);
 
     const prevSun = new Date(prevMon);
     prevSun.setDate(prevMon.getDate() + 6);
-    prevSun.setHours(23, 59, 59, 999);
 
     const formatYMD = (d: Date) => {
-      return new Intl.DateTimeFormat('sv-SE', {
-        timeZone: 'Asia/Ho_Chi_Minh',
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit'
-      }).format(d);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     };
 
     const formatDM = (d: Date) => {
@@ -312,7 +319,10 @@ async function startServer() {
 
   // API route to sync realtime daily Facebook Ads spend into Firestore
   app.post("/api/sync-fb-ads", async (req, res) => {
-    const { accessToken, adAccountId } = await getMetaCredentials();
+    const { accessToken: reqToken, adAccountId: reqAccountId } = req.body || {};
+    const stored = await getMetaCredentials();
+    const accessToken = reqToken?.trim() || stored.accessToken;
+    const adAccountId = reqAccountId?.trim() || stored.adAccountId;
 
     if (!accessToken || !adAccountId) {
       return res.status(400).json({ 
@@ -323,13 +333,15 @@ async function startServer() {
 
     try {
       const formattedId = adAccountId.startsWith("act_") ? adAccountId : `act_${adAccountId}`;
+      const timeRange = JSON.stringify(getVNDateRange(14));
       const response = await axios.get(
         `https://graph.facebook.com/v19.0/${formattedId}/insights`,
         {
           params: {
             fields: "spend",
-            date_preset: "this_week_mon_today",
+            time_range: timeRange,
             time_increment: 1,
+            limit: 30,
             access_token: accessToken,
           },
         }
@@ -340,7 +352,7 @@ async function startServer() {
 
       for (const item of insights) {
         const dateStr = item.date_start;
-        const spend = parseFloat(item.spend) || 0;
+        const spend = Math.round(parseFloat(item.spend) || 0);
 
         await setDoc(doc(db, 'ad_history', dateStr), {
           date: dateStr,
@@ -354,7 +366,7 @@ async function startServer() {
       console.log(`[FB Sync] Synced ${updatedDays.length} days of ad spend into ad_history`);
       res.json({ 
         success: true, 
-        message: `Đã cập nhật chi phí Ads cho ${updatedDays.length} ngày thành công!`,
+        message: `Đã cập nhật chi phí Ads cho ${updatedDays.length} ngày gần nhất thành công!`,
         days: updatedDays 
       });
     } catch (error: any) {
