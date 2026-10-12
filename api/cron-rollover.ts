@@ -15,6 +15,15 @@ const db = getFirestore(app);
 
 export default async function handler(req: any, res: any) {
   try {
+    const cronSecret = process.env.CRON_SECRET || process.env.INTERNAL_API_SECRET;
+    if (cronSecret) {
+      const authHeader = req.headers?.authorization || '';
+      const internalHeader = req.headers?.['x-internal-secret'] || '';
+      if (authHeader !== `Bearer ${cronSecret}` && internalHeader !== cronSecret) {
+        return res.status(401).json({ success: false, error: 'Unauthorized' });
+      }
+    }
+
     const nowVN = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Ho_Chi_Minh" }));
     const day = nowVN.getDay();
     const diff = nowVN.getDate() - day + (day === 0 ? -6 : 1);
@@ -125,20 +134,22 @@ export default async function handler(req: any, res: any) {
         auto_archived: true
       });
       archived = true;
+
+      // Reset shift schedule only once when archiving the previous week (idempotent)
+      const batch = writeBatch(db);
+      const readerShifts = await getDocs(collection(db, 'reader_shifts'));
+      readerShifts.forEach(d => batch.delete(d.ref));
+
+      const saleShifts = await getDocs(collection(db, 'sale_shifts'));
+      saleShifts.forEach(d => batch.delete(d.ref));
+      await batch.commit();
     }
-
-    // Reset shift schedule for the fresh week
-    const batch = writeBatch(db);
-    const readerShifts = await getDocs(collection(db, 'reader_shifts'));
-    readerShifts.forEach(d => batch.delete(d.ref));
-
-    const saleShifts = await getDocs(collection(db, 'sale_shifts'));
-    saleShifts.forEach(d => batch.delete(d.ref));
-    await batch.commit();
 
     return res.status(200).json({
       success: true,
-      message: `Tự động lưu kỳ lương ${periodId} và reset ca trực tuần mới thành công!`,
+      message: archived
+        ? `Tự động lưu kỳ lương ${periodId} và reset ca trực tuần mới thành công!`
+        : `Kỳ lương ${periodId} đã được lưu trước đó (idempotent skip).`,
       archived,
       periodId
     });

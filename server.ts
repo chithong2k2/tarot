@@ -228,20 +228,20 @@ async function autoArchivePreviousWeekOnServer() {
       });
 
       console.log(`[Cron] Auto-archived payroll period ${periodId} successfully (${weekSales.length} orders)!`);
+
+      // Reset shift schedule only once when archiving the previous week (idempotent)
+      const batch = writeBatch(db);
+      const readerShifts = await getDocs(collection(db, 'reader_shifts'));
+      readerShifts.forEach(d => batch.delete(d.ref));
+
+      const saleShifts = await getDocs(collection(db, 'sale_shifts'));
+      saleShifts.forEach(d => batch.delete(d.ref));
+      await batch.commit();
+
+      console.log(`[Cron] Cleared shift registrations for the new week.`);
     } else {
-      console.log(`[Cron] Payroll period ${periodId} already archived.`);
+      console.log(`[Cron] Payroll period ${periodId} already archived (idempotent skip).`);
     }
-
-    // Reset shift schedule for the fresh week
-    const batch = writeBatch(db);
-    const readerShifts = await getDocs(collection(db, 'reader_shifts'));
-    readerShifts.forEach(d => batch.delete(d.ref));
-
-    const saleShifts = await getDocs(collection(db, 'sale_shifts'));
-    saleShifts.forEach(d => batch.delete(d.ref));
-    await batch.commit();
-
-    console.log(`[Cron] Cleared shift registrations for the new week.`);
   } catch (error) {
     console.error("[Cron] Error during autoArchivePreviousWeekOnServer:", error);
   }

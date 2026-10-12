@@ -202,10 +202,18 @@ export default function App() {
     // 6. Settings listener
     const unsubSettings = onSnapshot(doc(db, 'settings', 'global'), (snapshot) => {
       if (snapshot.exists()) {
-        const sData = { id: snapshot.id, ...snapshot.data() } as SystemSettings;
+        const rawSettings = { id: snapshot.id, ...snapshot.data() } as SystemSettings;
+        if (user.role !== 'manager') {
+          delete rawSettings.fb_access_token;
+          delete rawSettings.gemini_api_key;
+        }
         setSettings(prev => {
-          const nextPackages = sData.packages || prev.packages;
-          const merged = { ...prev, ...sData, packages: nextPackages };
+          const nextPackages = rawSettings.packages || prev.packages;
+          const merged = { ...prev, ...rawSettings, packages: nextPackages };
+          if (user.role !== 'manager') {
+            delete merged.fb_access_token;
+            delete merged.gemini_api_key;
+          }
           try {
             localStorage.setItem('tarot_settings', JSON.stringify(merged));
             if (nextPackages) {
